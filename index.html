@@ -1358,7 +1358,41 @@ async function closeScanner() {
   if (html5QrCode && html5QrCode.isScanning) { try { await html5QrCode.stop(); } catch (e) {} }
 }
 
-function handleQRSuccess(text) {
+async function tryExpandUrl(url) {
+  // Best-effort: fetch via CORS proxy, follow redirects, look for coords
+  // in either the final URL or the response body. Tries 2 proxies as fallback.
+  const proxies = [
+    u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+    u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+  ];
+  for (const buildProxy of proxies) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 7000);
+      const res = await fetch(buildProxy(url), { signal: ctrl.signal, redirect: 'follow' });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      // Final URL after redirects
+      if (res.url && !/corsproxy\.io|allorigins\.win/.test(res.url)) {
+        const c = extractCoordsFromText(res.url);
+        if (c) return c;
+      }
+      // Try response body
+      const body = await res.text();
+      const c1 = extractCoordsFromText(body);
+      if (c1) return c1;
+      // Look for redirect target in HTML (meta refresh / JS location / canonical link)
+      const m = body.match(/(?:<meta[^>]+url=|window\.location[^=]*=\s*["']|<link[^>]+rel=["']canonical["'][^>]+href=["']|href\s*=\s*["'])(https?:\/\/[^"'>\s]+)/i);
+      if (m) {
+        const c2 = extractCoordsFromText(m[1]);
+        if (c2) return c2;
+      }
+    } catch (e) { /* try next proxy */ }
+  }
+  return null;
+}
+
+async function handleQRSuccess(text) {
   closeScanner();
   const coords = extractCoordsFromText(text);
   if (coords) {
@@ -1368,9 +1402,19 @@ function handleQRSuccess(text) {
     toast('מיקום נטען מ-QR ✓');
     return;
   }
-  if (/goo\.gl|maps\.app|maps\/app|short\.gl|bit\.ly|tinyurl/i.test(text)) {
+  // Any URL — try to follow redirects and find coords at destination
+  if (/^https?:\/\//i.test(text.trim())) {
     document.getElementById('coordInput').value = text;
-    toast('קישור מקוצר - פתח אותו פעם אחת באפליקציית מפות, ואז סרוק את הקישור המלא', 4500);
+    toast('מנסה להרחיב קישור...', 7000);
+    const expanded = await tryExpandUrl(text.trim());
+    if (expanded) {
+      document.getElementById('coordInput').value = `${expanded[0]}, ${expanded[1]}`;
+      document.getElementById('coordInput').dispatchEvent(new Event('input'));
+      setActiveUnsavedPoint(parseFloat(expanded[0]), parseFloat(expanded[1]));
+      toast('מיקום נטען מקישור ✓');
+      return;
+    }
+    toast('לא הצלחתי לחלץ מהקישור. פתח אותו בדפדפן ואז סרוק את הכתובת המלאה.', 5000);
     return;
   }
   document.getElementById('coordInput').value = text;
