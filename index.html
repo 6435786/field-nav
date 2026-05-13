@@ -465,11 +465,23 @@ function hideAuthModal() { document.getElementById('authModal').classList.remove
 function signInWithGoogle() {
   if (!auth) { toast('Firebase לא נטען'); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).then(() => {
-    hideAuthModal();
-  }).catch(e => {
-    toast('שגיאה בכניסה: ' + e.message, 4000);
-  });
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  if (isMobile) {
+    // Redirect flow is more reliable on mobile than popup
+    auth.signInWithRedirect(provider).catch(e => {
+      if (e && e.code !== 'auth/cancelled-popup-request') {
+        toast('שגיאה בכניסה: ' + e.message, 4000);
+      }
+    });
+  } else {
+    auth.signInWithPopup(provider).then(() => {
+      hideAuthModal();
+    }).catch(e => {
+      if (e && e.code === 'auth/cancelled-popup-request') return;
+      if (e && e.code === 'auth/popup-closed-by-user') return;
+      toast('שגיאה בכניסה: ' + e.message, 4000);
+    });
+  }
 }
 
 function signOutNow() {
@@ -507,11 +519,24 @@ function updateAuthUI() {
 }
 
 if (auth) {
+  // Handle return from Google sign-in redirect (mobile)
+  auth.getRedirectResult().then(result => {
+    if (result && result.user) {
+      hideAuthModal();
+    }
+  }).catch(e => {
+    if (e && e.code && e.code !== 'auth/no-current-user') {
+      console.warn('redirect result:', e);
+      toast('שגיאה בהתחברות: ' + e.message, 4500);
+    }
+  });
+
   auth.onAuthStateChanged(user => {
     state.user = user;
     state.authChecked = true;
     updateAuthUI();
     if (user) {
+      hideAuthModal();
       subscribeToProjects();
       subscribeToPoints();
     } else {
