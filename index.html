@@ -79,6 +79,16 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .detected-mini{font-size:11px;color:var(--success);font-weight:600;text-align:center;min-height:14px}
 .detected-mini.error{color:var(--danger)}
 
+.url-fallback{background:var(--warn-light);border:1px solid #fbbf24;border-radius:var(--radius-sm);padding:10px 12px;display:none;flex-direction:column;gap:8px}
+.url-fallback.show{display:flex}
+.url-fallback-msg{font-size:12px;color:#7c4a05;font-weight:600;line-height:1.4}
+.url-fallback-url{font-size:11px;color:var(--text-muted);font-family:'SF Mono',Consolas,monospace;direction:ltr;word-break:break-all;background:#fff;padding:6px 8px;border-radius:5px}
+.url-fallback-actions{display:flex;gap:6px}
+.url-fallback-actions button{flex:1;padding:8px;font-size:12.5px;font-weight:700;border-radius:var(--radius-sm);border:none;font-family:inherit;cursor:pointer}
+.url-fallback-actions .btn-open-url{background:var(--primary);color:#fff}
+.url-fallback-actions .btn-open-url:hover{background:var(--primary-dark)}
+.url-fallback-actions .btn-dismiss-url{background:#fff;color:var(--text-muted);border:1px solid var(--border-strong)}
+
 /* Map */
 .map-area{flex:1;position:relative;min-height:200px;background:var(--surface2)}
 #leafletMap{position:absolute;inset:0;width:100%;height:100%;z-index:0}
@@ -271,6 +281,14 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
       <button class="btn-quick" onclick="openScanner()">📷 סרוק QR</button>
     </div>
     <div class="detected-mini" id="detectedMini"></div>
+    <div class="url-fallback" id="urlFallback">
+      <div class="url-fallback-msg" id="urlFallbackMsg">לא חולצו קואורדינטות מהקישור</div>
+      <div class="url-fallback-url" id="urlFallbackUrl"></div>
+      <div class="url-fallback-actions">
+        <button class="btn-open-url" onclick="openScannedUrl()">🔗 פתח את הקישור</button>
+        <button class="btn-dismiss-url" onclick="dismissUrlFallback()">סגור</button>
+      </div>
+    </div>
   </div>
 
   <!-- MAP -->
@@ -1394,6 +1412,7 @@ async function tryExpandUrl(url) {
 
 async function handleQRSuccess(text) {
   closeScanner();
+  dismissUrlFallback();
   const coords = extractCoordsFromText(text);
   if (coords) {
     document.getElementById('coordInput').value = `${coords[0]}, ${coords[1]}`;
@@ -1414,11 +1433,27 @@ async function handleQRSuccess(text) {
       toast('מיקום נטען מקישור ✓');
       return;
     }
-    toast('לא הצלחתי לחלץ מהקישור. פתח אותו בדפדפן ואז סרוק את הכתובת המלאה.', 5000);
+    // Fallback: offer to just open the URL (like the camera app does)
+    showUrlFallback(text.trim());
     return;
   }
   document.getElementById('coordInput').value = text;
   toast('לא זוהו קואורדינטות', 3000);
+}
+
+let lastScannedUrl = null;
+function showUrlFallback(url) {
+  lastScannedUrl = url;
+  document.getElementById('urlFallbackUrl').textContent = url;
+  document.getElementById('urlFallback').classList.add('show');
+}
+function dismissUrlFallback() {
+  lastScannedUrl = null;
+  document.getElementById('urlFallback').classList.remove('show');
+}
+function openScannedUrl() {
+  if (!lastScannedUrl) return;
+  window.open(lastScannedUrl, '_blank', 'noopener,noreferrer');
 }
 
 function extractCoordsFromText(text) {
