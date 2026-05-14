@@ -14,7 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -1429,70 +1429,211 @@ function updateUserMarkerRotation() {
 }
 
 // ========== QR SCANNER ==========
-let qrScanner = null;
+// ====== QR SCANNER (custom; uses native BarcodeDetector when available, jsQR fallback) ======
+let scanStream = null;
+let scanActive = false;
+let scanDecoder = null; // 'native' | 'jsqr'
+let nativeDetector = null;
+let scanCanvas = null;
+let scanCtx = null;
+let torchOn = false;
+
 async function openScanner() {
   const modal = document.getElementById('qrScannerModal');
   const errEl = document.getElementById('qrError');
   const torchBtn = document.getElementById('qrTorchBtn');
   errEl.style.display = 'none';
+  torchBtn.style.display = 'none';
   modal.classList.add('show');
 
-  if (typeof QrScanner === 'undefined') {
-    errEl.textContent = 'ספריית סריקה לא נטענה (חיבור?). רענן.';
+  // Initial permission grab so device labels become available
+  let permStream = null;
+  try {
+    permStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+  } catch (e) {
+    errEl.innerHTML = 'אין הרשאת מצלמה. ודא HTTPS + הרשאה לדפדפן.<br><br>' + (e.message || e);
     errEl.style.display = 'block';
     return;
   }
 
-  // Wire worker location for jsdelivr-hosted lib
-  try { QrScanner.WORKER_PATH = 'https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner-worker.min.js'; } catch (e) {}
+  // Pick the best back camera by enumerating
+  let chosenDeviceId = null;
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+    const back = devs.filter(d => /back|rear|environment|מאחור/i.test(d.label));
+    const pool = back.length ? back : devs;
+    // Prefer the main lens (avoid ultra-wide/macro/tele/depth)
+    const main = pool.find(d => !/wide|ultra|tele|macro|depth|0\.5|×|x\)/i.test(d.label)) || pool[0];
+    if (main && main.deviceId) chosenDeviceId = main.deviceId;
+  } catch (e) {}
+  // Stop the permission stream — we'll request the chosen device with proper constraints
+  permStream.getTracks().forEach(t => t.stop());
+
+  // Now request the actual camera with hi-res + continuous focus
+  const constraints = {
+    video: {
+      ...(chosenDeviceId ? { deviceId: { exact: chosenDeviceId } } : { facingMode: { ideal: 'environment' } }),
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      frameRate: { ideal: 30 },
+    },
+    audio: false,
+  };
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia(constraints);
+  } catch (e) {
+    // Retry with relaxed constraints
+    try {
+      scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    } catch (e2) {
+      errEl.innerHTML = 'לא הצלחתי לפתוח מצלמה.<br>' + (e2.message || e2);
+      errEl.style.display = 'block';
+      return;
+    }
+  }
+
+  const track = scanStream.getVideoTracks()[0];
+  // Apply continuous autofocus if supported
+  try {
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.focusMode && caps.focusMode.includes('continuous')) {
+      await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+    }
+    if (caps.torch) torchBtn.style.display = 'block';
+  } catch (e) {}
 
   const video = document.getElementById('qrVideo');
-  if (!qrScanner) {
-    qrScanner = new QrScanner(video, result => {
-      handleQRSuccess(result.data || result);
-    }, {
-      preferredCamera: 'environment',
-      highlightScanRegion: true,
-      highlightCodeOutline: true,
-      maxScansPerSecond: 10,
-      returnDetailedScanResult: true,
-    });
+  video.srcObject = scanStream;
+  video.setAttribute('playsinline', 'true');
+  await video.play();
+
+  // Pick decoder: native BarcodeDetector if supported, else jsQR
+  if ('BarcodeDetector' in window) {
+    try {
+      const formats = await BarcodeDetector.getSupportedFormats();
+      if (formats.includes('qr_code')) {
+        nativeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+        scanDecoder = 'native';
+      }
+    } catch (e) {}
   }
-  try {
-    await qrScanner.start();
-    // Show torch button if device supports it
-    const hasTorch = await qrScanner.hasFlash().catch(() => false);
-    torchBtn.style.display = hasTorch ? 'block' : 'none';
-  } catch (e) {
-    errEl.innerHTML = 'לא הצלחתי להפעיל מצלמה.<br>בדוק שאתה ב-HTTPS ושנתת הרשאה.<br><br>שגיאה: ' + (e.message || e);
+  if (!scanDecoder && typeof jsQR === 'function') {
+    scanDecoder = 'jsqr';
+    if (!scanCanvas) { scanCanvas = document.createElement('canvas'); scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true }); }
+  }
+  if (!scanDecoder) {
+    errEl.textContent = 'הדפדפן לא תומך בסריקת QR. השתמש בהעלאת תמונה.';
     errEl.style.display = 'block';
+    return;
   }
+
+  scanActive = true;
+  decodeLoop();
 }
 
-async function closeScanner() {
+async function decodeLoop() {
+  if (!scanActive) return;
+  const video = document.getElementById('qrVideo');
+  if (video.readyState >= 2 && video.videoWidth > 0) {
+    try {
+      let value = null;
+      if (scanDecoder === 'native') {
+        const codes = await nativeDetector.detect(video);
+        if (codes && codes.length) value = codes[0].rawValue;
+      } else {
+        scanCanvas.width = video.videoWidth;
+        scanCanvas.height = video.videoHeight;
+        scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
+        const img = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+        if (code) value = code.data;
+      }
+      if (value) {
+        scanActive = false;
+        handleQRSuccess(value);
+        return;
+      }
+    } catch (e) { /* keep looping */ }
+  }
+  // Use rAF for native (fast), small delay for jsQR (heavier)
+  if (scanDecoder === 'native') requestAnimationFrame(decodeLoop);
+  else setTimeout(decodeLoop, 80);
+}
+
+function stopScanStream() {
+  scanActive = false;
+  torchOn = false;
+  if (scanStream) {
+    scanStream.getTracks().forEach(t => t.stop());
+    scanStream = null;
+  }
+  const video = document.getElementById('qrVideo');
+  if (video) { try { video.srcObject = null; } catch (e) {} }
+}
+
+function closeScanner() {
+  stopScanStream();
   document.getElementById('qrScannerModal').classList.remove('show');
-  if (qrScanner) { try { qrScanner.stop(); } catch (e) {} }
 }
 
 async function toggleQRTorch() {
-  if (!qrScanner) return;
+  if (!scanStream) return;
+  const track = scanStream.getVideoTracks()[0];
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  if (!caps.torch) { toast('הפנס לא נתמך'); return; }
+  torchOn = !torchOn;
   try {
-    if (qrScanner.isFlashOn()) await qrScanner.turnFlashOff();
-    else await qrScanner.turnFlashOn();
-  } catch (e) { toast('הפנס לא נתמך'); }
+    await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+    document.getElementById('qrTorchBtn').textContent = torchOn ? '🔦 כבה פנס' : '🔦 פנס';
+  } catch (e) { toast('שגיאה בפנס: ' + e.message); }
 }
+
+// Tap on the video to request a focus point (when supported)
+document.addEventListener('DOMContentLoaded', () => {
+  const v = document.getElementById('qrVideo');
+  if (!v) return;
+  v.addEventListener('click', async (e) => {
+    if (!scanStream) return;
+    const track = scanStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.pointsOfInterest && !caps.focusMode) return;
+    const rect = v.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    try {
+      await track.applyConstraints({ advanced: [{ pointsOfInterest: [{ x, y }], focusMode: 'single-shot' }] });
+    } catch (err) {}
+  });
+});
 
 async function scanQRFromFile(event) {
   const file = event.target.files && event.target.files[0];
   event.target.value = '';
   if (!file) return;
-  if (typeof QrScanner === 'undefined') { toast('ספריית סריקה לא נטענה'); return; }
   try {
-    const result = await QrScanner.scanImage(file, { returnDetailedScanResult: true });
-    closeScanner();
-    handleQRSuccess(result.data || result);
-  } catch (e) {
+    if ('BarcodeDetector' in window) {
+      const formats = await BarcodeDetector.getSupportedFormats();
+      if (formats.includes('qr_code')) {
+        const detector = new BarcodeDetector({ formats: ['qr_code'] });
+        const bitmap = await createImageBitmap(file);
+        const codes = await detector.detect(bitmap);
+        if (codes && codes.length) { closeScanner(); handleQRSuccess(codes[0].rawValue); return; }
+      }
+    }
+    if (typeof jsQR === 'function') {
+      const url = URL.createObjectURL(file);
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      const data = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+      const code = jsQR(data.data, data.width, data.height, { inversionAttempts: 'attemptBoth' });
+      URL.revokeObjectURL(url);
+      if (code) { closeScanner(); handleQRSuccess(code.data); return; }
+    }
     toast('לא נמצא QR בתמונה', 3000);
+  } catch (e) {
+    toast('שגיאה בקריאת התמונה: ' + e.message, 3500);
   }
 }
 
