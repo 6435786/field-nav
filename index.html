@@ -186,6 +186,15 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .copy-btn.copied{background:var(--success-light);color:var(--success);border-color:var(--success)}
 
 .elevation-mini{display:flex;align-items:center;gap:8px;padding:9px 12px;background:linear-gradient(135deg,var(--info-light) 0%,transparent 100%);border-radius:var(--radius-sm);margin-bottom:10px;border:1px solid #a5f3fc}
+.nav-info-card{background:linear-gradient(135deg,var(--info-light) 0%,var(--surface) 100%);border:1px solid #a5f3fc;border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:10px;display:flex;flex-direction:column;gap:7px}
+.nav-info-row{display:flex;align-items:center;gap:9px;font-size:13px;line-height:1.3}
+.nav-info-row .nii{font-size:17px;width:22px;text-align:center;flex-shrink:0}
+.nav-info-row .nil{color:var(--text-muted);font-weight:500;flex-shrink:0;min-width:118px}
+.nav-info-row .niv{flex:1;text-align:left;font-family:'SF Mono',Consolas,monospace;direction:ltr;font-size:13px;color:var(--text)}
+.nav-info-row .niv b{font-size:14.5px;font-weight:800}
+.nav-info-row .niv .muted{color:var(--text-muted);font-family:inherit;font-size:11.5px;font-weight:500}
+.nav-info-row .niv .up{color:var(--success);font-weight:800}
+.nav-info-row .niv .down{color:var(--danger);font-weight:800}
 .elevation-mini .ic{font-size:20px}
 .elevation-mini .val{font-size:15px;font-weight:800;color:var(--text)}
 .elevation-mini .val small{font-size:11px;font-weight:600;color:var(--text-muted)}
@@ -273,7 +282,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <!-- QUICK INPUT -->
   <div class="quick-input">
     <div class="quick-input-row">
-      <input type="text" class="coord-input" id="coordInput" placeholder="הקלד קואורדינטות (WGS84 / ITM / UTM)..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <input type="text" class="coord-input" id="coordInput" placeholder="הקלד קואורדינטות או הדבק קישור גוגל מפות..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <button class="btn-add-point" id="addPointBtn" onclick="onAddPointClick()" disabled>➕ הוסף</button>
     </div>
     <div class="quick-secondary">
@@ -799,6 +808,17 @@ function parseDMS(str) {
 
 function detectAndParse(input) {
   if (!input || !input.trim()) return null;
+  // URL (Google Maps / Waze / geo:)
+  if (/^(https?|geo):/i.test(input.trim()) || /https?:\/\//i.test(input)) {
+    const c = extractCoordsFromText(input);
+    if (c) {
+      const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
+      if (!isNaN(lat) && !isNaN(lon)) return { type: 'מקישור', latLon: [lat, lon] };
+    }
+    if (/^(https?|geo):/i.test(input.trim())) {
+      return { error: 'לא חולצו קואורדינטות מהקישור — הקישור מקוצר? פתח אותו ונסה את הכתובת המלאה' };
+    }
+  }
   if (/[°'"NSEW]/i.test(input)) {
     const r = parseDMS(input);
     if (r) return { type: 'WGS84 (DMS)', latLon: r };
@@ -874,11 +894,13 @@ function useCurrentLocation() {
   btn.innerHTML = '<span class="spinner"></span> מאתר...';
   btn.disabled = true;
   navigator.geolocation.getCurrentPosition(pos => {
-    const { latitude, longitude } = pos.coords;
+    const { latitude, longitude, accuracy } = pos.coords;
+    state.livePosition = { lat: latitude, lon: longitude, accuracy };
     document.getElementById('coordInput').value = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     btn.innerHTML = '📍 מיקום נוכחי';
     btn.disabled = false;
     document.getElementById('coordInput').dispatchEvent(new Event('input'));
+    refreshSheetIfActive();
   }, err => {
     btn.innerHTML = '📍 מיקום נוכחי';
     btn.disabled = false;
@@ -1118,13 +1140,11 @@ function renderSheet() {
   // QR inline placeholder
   html += `<div id="qrInline" style="display:none"></div>`;
 
-  // Elevation
-  html += `<div class="elevation-mini">
-    <span class="ic">⛰️</span>
-    <div style="flex:1">
-      <div class="val" id="elevVal"><span class="spinner"></span></div>
-      <div style="font-size:10px;color:var(--text-muted);margin-top:2px" id="elevSrc">טוען גובה...</div>
-    </div>
+  // Navigation info: elevation at point + delta to user + distance/azimuth from user
+  html += `<div class="nav-info-card">
+    <div class="nav-info-row"><span class="nii">⛰️</span><span class="nil">גובה בנקודה:</span><span class="niv" id="navElev"><span class="spinner"></span></span></div>
+    <div class="nav-info-row"><span class="nii">↕️</span><span class="nil">הפרש גובה ממך:</span><span class="niv" id="navDelta"><span class="muted">—</span></span></div>
+    <div class="nav-info-row"><span class="nii">🧭</span><span class="nil">מרחק ואזימוט ממך:</span><span class="niv" id="navDistAz"><span class="muted">—</span></span></div>
   </div>`;
 
   // Conversions (collapsible)
@@ -1141,8 +1161,8 @@ function renderSheet() {
 
   body.innerHTML = html;
 
-  // Load elevation
-  loadElevation(p.lat, p.lon);
+  // Load navigation info: elevations + distance/azimuth
+  loadNavInfo(p.lat, p.lon);
 }
 
 function convRow(label, value, hint) {
@@ -1165,30 +1185,73 @@ function copyToClipboard(text, btn) {
   }).catch(() => toast('לא הצלחתי להעתיק'));
 }
 
-let elevAbort = null;
-async function loadElevation(lat, lon) {
-  const valEl = document.getElementById('elevVal');
-  const srcEl = document.getElementById('elevSrc');
-  if (!valEl || !srcEl) return;
-  valEl.innerHTML = '<span class="spinner"></span>';
-  srcEl.textContent = 'טוען גובה...';
-  if (elevAbort) elevAbort.abort();
-  elevAbort = new AbortController();
+// Cheap, sync update of distance + azimuth row (no API call). Used on every GPS tick.
+function updateNavInfoDynamics() {
+  if (!state.activePoint) return;
+  const distAzEl = document.getElementById('navDistAz');
+  if (!distAzEl) return;
+  const userPos = state.livePosition;
+  if (!userPos) return;
+  const d = distanceM(userPos.lat, userPos.lon, state.activePoint.lat, state.activePoint.lon);
+  const bear = bearingDeg(userPos.lat, userPos.lon, state.activePoint.lat, state.activePoint.lon);
+  distAzEl.innerHTML = `<b>${fmtDistance(d)}</b> · ${Math.round(bear)}° <span class="muted">(${bearingToCardinal(bear)})</span>`;
+}
+
+let navInfoAbort = null;
+async function loadNavInfo(lat, lon) {
+  const elevEl = document.getElementById('navElev');
+  const deltaEl = document.getElementById('navDelta');
+  const distAzEl = document.getElementById('navDistAz');
+  if (!elevEl || !deltaEl || !distAzEl) return;
+
+  const userPos = state.livePosition;
+  const hasUser = !!userPos && typeof userPos.lat === 'number';
+
+  // Distance + azimuth (instant)
+  if (hasUser) {
+    const d = distanceM(userPos.lat, userPos.lon, lat, lon);
+    const bear = bearingDeg(userPos.lat, userPos.lon, lat, lon);
+    distAzEl.innerHTML = `<b>${fmtDistance(d)}</b> · ${Math.round(bear)}° <span class="muted">(${bearingToCardinal(bear)})</span>`;
+  } else {
+    distAzEl.innerHTML = `<span class="muted">לחץ "📍 מיקום נוכחי" כדי לחשב</span>`;
+  }
+
+  // Elevations — one API call for point (and user if known)
+  elevEl.innerHTML = '<span class="spinner"></span>';
+  deltaEl.innerHTML = hasUser ? '<span class="spinner"></span>' : '<span class="muted">לחץ "📍 מיקום נוכחי" כדי לחשב</span>';
+
+  if (navInfoAbort) navInfoAbort.abort();
+  navInfoAbort = new AbortController();
   try {
-    const res = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`, { signal: elevAbort.signal });
+    const url = hasUser
+      ? `https://api.open-meteo.com/v1/elevation?latitude=${lat},${userPos.lat}&longitude=${lon},${userPos.lon}`
+      : `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`;
+    const res = await fetch(url, { signal: navInfoAbort.signal });
     if (!res.ok) throw 0;
     const data = await res.json();
-    const el = data.elevation && data.elevation[0];
-    if (typeof el === 'number') {
-      valEl.innerHTML = `${Math.round(el)} <small>מ׳ מעל פני הים</small>`;
-      srcEl.textContent = 'Open-Meteo / Copernicus DEM';
-      return;
+    const arr = data.elevation || [];
+    const pointElev = arr[0];
+    const userElev = hasUser ? arr[1] : null;
+
+    if (typeof pointElev === 'number') {
+      elevEl.innerHTML = `<b>${Math.round(pointElev)}</b> <span class="muted">מ׳ מעל פני הים</span>`;
+    } else {
+      elevEl.innerHTML = '<span class="muted">—</span>';
     }
-    throw 0;
+
+    if (hasUser && typeof pointElev === 'number' && typeof userElev === 'number') {
+      const delta = pointElev - userElev;
+      const sign = delta >= 0 ? '+' : '';
+      const cls = delta > 5 ? 'up' : (delta < -5 ? 'down' : '');
+      const icon = delta > 5 ? '⬆' : (delta < -5 ? '⬇' : '➖');
+      deltaEl.innerHTML = `<b class="${cls}">${icon} ${sign}${Math.round(delta)} מ׳</b> <span class="muted">(אתה ${Math.round(userElev)} מ׳)</span>`;
+    } else if (hasUser) {
+      deltaEl.innerHTML = '<span class="muted">—</span>';
+    }
   } catch (e) {
     if (e && e.name === 'AbortError') return;
-    valEl.textContent = '—';
-    srcEl.textContent = 'אין נתוני גובה (אין רשת?)';
+    elevEl.innerHTML = '<span class="muted">אין רשת</span>';
+    if (hasUser) deltaEl.innerHTML = '<span class="muted">אין רשת</span>';
   }
 }
 
@@ -1289,6 +1352,7 @@ async function startTracking() {
   watchId = navigator.geolocation.watchPosition(pos => {
     const { latitude, longitude, accuracy, heading } = pos.coords;
     const latlng = [latitude, longitude];
+    const wasFirstUserFix = !state.livePosition;
     state.livePosition = { lat: latitude, lon: longitude, accuracy };
     if (typeof heading === 'number' && !isNaN(heading)) currentHeading = heading;
     if (!userLocationMarker) {
@@ -1310,7 +1374,13 @@ async function startTracking() {
     }
     updateUserMarkerRotation();
     refreshAzimuth();
-    refreshSheetIfActive();
+    if (wasFirstUserFix && state.activePoint) {
+      // Need full reload to compute elevation delta
+      loadNavInfo(state.activePoint.lat, state.activePoint.lon);
+    } else {
+      // Cheap update for dist/az; spare the elevation API
+      updateNavInfoDynamics();
+    }
   }, err => {
     const msgs = { 1: 'נדחתה הרשאה', 2: 'לא זמין', 3: 'תם הזמן' };
     toast('GPS: ' + (msgs[err.code] || err.message));
