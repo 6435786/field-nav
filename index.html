@@ -14,7 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -244,8 +244,15 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .btn-skip-auth:hover{color:var(--text)}
 
 /* QR Scanner */
-#qr-reader{width:100%;border-radius:var(--radius-sm);overflow:hidden;background:#000;min-height:240px}
-#qr-reader video{width:100%!important;height:auto!important;display:block}
+#qr-reader{width:100%;border-radius:var(--radius-sm);overflow:hidden;background:#000;min-height:240px;position:relative;aspect-ratio:1}
+#qr-reader video{width:100%!important;height:100%!important;display:block;object-fit:cover}
+.scan-region-highlight{border:3px solid #fff;border-radius:8px}
+.scan-region-highlight-svg{stroke:#1a56db}
+.code-outline-highlight{stroke:#10b981!important;stroke-width:4!important}
+.qr-actions{display:flex;gap:8px;margin-top:10px}
+.qr-actions button,.qr-actions label{flex:1;padding:10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface2);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:center;color:var(--text)}
+.qr-actions button:hover,.qr-actions label:hover{background:var(--border)}
+.qr-actions input[type=file]{display:none}
 .qr-error{color:var(--danger);font-size:13px;margin-top:10px;padding:10px;background:var(--danger-light);border-radius:var(--radius-sm)}
 
 /* Empty state */
@@ -376,7 +383,13 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <button class="modal-close" onclick="closeScanner()" aria-label="סגור">×</button>
     <h3>📷 סריקת QR</h3>
     <div class="modal-info">הכוון את המצלמה לקוד QR שמכיל קישור למיקום (Google Maps / Waze / קואורדינטות)</div>
-    <div id="qr-reader"></div>
+    <div id="qr-reader"><video id="qrVideo" playsinline muted></video></div>
+    <div class="qr-actions">
+      <label for="qrFileInput">📁 העלה תמונה של QR
+        <input type="file" id="qrFileInput" accept="image/*" onchange="scanQRFromFile(event)">
+      </label>
+      <button onclick="toggleQRTorch()" id="qrTorchBtn" style="display:none">🔦 פנס</button>
+    </div>
     <div id="qrError" class="qr-error" style="display:none"></div>
   </div>
 </div>
@@ -1416,67 +1429,71 @@ function updateUserMarkerRotation() {
 }
 
 // ========== QR SCANNER ==========
-let html5QrCode = null;
+let qrScanner = null;
 async function openScanner() {
   const modal = document.getElementById('qrScannerModal');
   const errEl = document.getElementById('qrError');
+  const torchBtn = document.getElementById('qrTorchBtn');
   errEl.style.display = 'none';
   modal.classList.add('show');
-  if (typeof Html5Qrcode === 'undefined') {
+
+  if (typeof QrScanner === 'undefined') {
     errEl.textContent = 'ספריית סריקה לא נטענה (חיבור?). רענן.';
     errEl.style.display = 'block';
     return;
   }
-  if (!html5QrCode) html5QrCode = new Html5Qrcode('qr-reader');
-  // Try to pick the best back camera (often the main wide lens, not the ultra-wide).
-  // Some Android devices expose multiple "environment" cameras and the library may pick the worst.
-  let cameraSpec = { facingMode: { exact: 'environment' } };
-  try {
-    const cameras = await Html5Qrcode.getCameras();
-    if (cameras && cameras.length) {
-      // Prefer back/rear/environment-labeled cameras; among them, prefer ones without "wide"/"ultra" in label
-      const back = cameras.filter(c => /back|rear|environment/i.test(c.label));
-      const pool = back.length ? back : cameras;
-      const main = pool.find(c => !/wide|ultra|tele|macro|depth/i.test(c.label)) || pool[0];
-      if (main) cameraSpec = main.id;
-    }
-  } catch (e) { /* fall back to facingMode */ }
 
-  const config = {
-    fps: 15,
-    qrbox: (vw, vh) => {
-      const m = Math.floor(Math.min(vw, vh) * 0.75);
-      return { width: m, height: m };
-    },
-    aspectRatio: 1.0,
-    videoConstraints: {
-      facingMode: 'environment',
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
-      advanced: [
-        { focusMode: 'continuous' },
-        { focusMode: 'auto' }
-      ]
-    },
-    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-  };
+  // Wire worker location for jsdelivr-hosted lib
+  try { QrScanner.WORKER_PATH = 'https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner-worker.min.js'; } catch (e) {}
 
+  const video = document.getElementById('qrVideo');
+  if (!qrScanner) {
+    qrScanner = new QrScanner(video, result => {
+      handleQRSuccess(result.data || result);
+    }, {
+      preferredCamera: 'environment',
+      highlightScanRegion: true,
+      highlightCodeOutline: true,
+      maxScansPerSecond: 10,
+      returnDetailedScanResult: true,
+    });
+  }
   try {
-    await html5QrCode.start(cameraSpec, config, (t) => handleQRSuccess(t), () => {});
+    await qrScanner.start();
+    // Show torch button if device supports it
+    const hasTorch = await qrScanner.hasFlash().catch(() => false);
+    torchBtn.style.display = hasTorch ? 'block' : 'none';
   } catch (e) {
-    // Some devices reject "exact: environment" — retry with relaxed facingMode
-    try {
-      await html5QrCode.start({ facingMode: 'environment' }, config, (t) => handleQRSuccess(t), () => {});
-    } catch (e2) {
-      errEl.innerHTML = 'לא הצלחתי להפעיל מצלמה.<br>בדוק שאתה ב-HTTPS ושנתת הרשאה.<br><br>שגיאה: ' + (e2.message || e2);
-      errEl.style.display = 'block';
-    }
+    errEl.innerHTML = 'לא הצלחתי להפעיל מצלמה.<br>בדוק שאתה ב-HTTPS ושנתת הרשאה.<br><br>שגיאה: ' + (e.message || e);
+    errEl.style.display = 'block';
   }
 }
 
 async function closeScanner() {
   document.getElementById('qrScannerModal').classList.remove('show');
-  if (html5QrCode && html5QrCode.isScanning) { try { await html5QrCode.stop(); } catch (e) {} }
+  if (qrScanner) { try { qrScanner.stop(); } catch (e) {} }
+}
+
+async function toggleQRTorch() {
+  if (!qrScanner) return;
+  try {
+    if (qrScanner.isFlashOn()) await qrScanner.turnFlashOff();
+    else await qrScanner.turnFlashOn();
+  } catch (e) { toast('הפנס לא נתמך'); }
+}
+
+async function scanQRFromFile(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  if (typeof QrScanner === 'undefined') { toast('ספריית סריקה לא נטענה'); return; }
+  try {
+    const result = await QrScanner.scanImage(file, { returnDetailedScanResult: true });
+    closeScanner();
+    handleQRSuccess(result.data || result);
+  } catch (e) {
+    toast('לא נמצא QR בתמונה', 3000);
+  }
 }
 
 async function tryExpandUrl(url) {
