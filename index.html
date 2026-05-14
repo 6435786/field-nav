@@ -1480,7 +1480,10 @@ async function openScanner() {
       const bBad = /wide|ultra|tele|macro|depth/i.test(b.label) ? 1 : 0;
       return aBad - bBad;
     });
-    activeCameraIdx = 0;
+    // Use remembered camera choice if it's still in the list
+    const savedId = localStorage.getItem('fieldnav.preferredCameraId');
+    const savedIdx = savedId ? backCameras.findIndex(c => c.deviceId === savedId) : -1;
+    activeCameraIdx = savedIdx >= 0 ? savedIdx : 0;
   } catch (e) { backCameras = []; }
   permStream.getTracks().forEach(t => t.stop());
 
@@ -1626,6 +1629,8 @@ async function switchScannerCamera() {
   if (backCameras.length < 2) { toast('יש מצלמה אחת בלבד'); return; }
   scanActive = false;
   activeCameraIdx = (activeCameraIdx + 1) % backCameras.length;
+  const cam = backCameras[activeCameraIdx];
+  if (cam && cam.deviceId) localStorage.setItem('fieldnav.preferredCameraId', cam.deviceId);
   await startScannerOnCamera(activeCameraIdx);
 }
 
