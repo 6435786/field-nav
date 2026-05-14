@@ -1428,16 +1428,49 @@ async function openScanner() {
     return;
   }
   if (!html5QrCode) html5QrCode = new Html5Qrcode('qr-reader');
+  // Try to pick the best back camera (often the main wide lens, not the ultra-wide).
+  // Some Android devices expose multiple "environment" cameras and the library may pick the worst.
+  let cameraSpec = { facingMode: { exact: 'environment' } };
   try {
-    await html5QrCode.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      (decodedText) => handleQRSuccess(decodedText),
-      () => {}
-    );
+    const cameras = await Html5Qrcode.getCameras();
+    if (cameras && cameras.length) {
+      // Prefer back/rear/environment-labeled cameras; among them, prefer ones without "wide"/"ultra" in label
+      const back = cameras.filter(c => /back|rear|environment/i.test(c.label));
+      const pool = back.length ? back : cameras;
+      const main = pool.find(c => !/wide|ultra|tele|macro|depth/i.test(c.label)) || pool[0];
+      if (main) cameraSpec = main.id;
+    }
+  } catch (e) { /* fall back to facingMode */ }
+
+  const config = {
+    fps: 15,
+    qrbox: (vw, vh) => {
+      const m = Math.floor(Math.min(vw, vh) * 0.75);
+      return { width: m, height: m };
+    },
+    aspectRatio: 1.0,
+    videoConstraints: {
+      facingMode: 'environment',
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      advanced: [
+        { focusMode: 'continuous' },
+        { focusMode: 'auto' }
+      ]
+    },
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+  };
+
+  try {
+    await html5QrCode.start(cameraSpec, config, (t) => handleQRSuccess(t), () => {});
   } catch (e) {
-    errEl.innerHTML = 'לא הצלחתי להפעיל מצלמה.<br>בדוק שאתה ב-HTTPS ושנתת הרשאה.<br><br>שגיאה: ' + (e.message || e);
-    errEl.style.display = 'block';
+    // Some devices reject "exact: environment" — retry with relaxed facingMode
+    try {
+      await html5QrCode.start({ facingMode: 'environment' }, config, (t) => handleQRSuccess(t), () => {});
+    } catch (e2) {
+      errEl.innerHTML = 'לא הצלחתי להפעיל מצלמה.<br>בדוק שאתה ב-HTTPS ושנתת הרשאה.<br><br>שגיאה: ' + (e2.message || e2);
+      errEl.style.display = 'block';
+    }
   }
 }
 
