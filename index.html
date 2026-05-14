@@ -249,10 +249,14 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .scan-region-highlight{border:3px solid #fff;border-radius:8px}
 .scan-region-highlight-svg{stroke:#1a56db}
 .code-outline-highlight{stroke:#10b981!important;stroke-width:4!important}
-.qr-actions{display:flex;gap:8px;margin-top:10px}
-.qr-actions button,.qr-actions label{flex:1;padding:10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface2);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:center;color:var(--text)}
+.qr-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.qr-actions button,.qr-actions label{flex:1;min-width:90px;padding:10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface2);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:center;color:var(--text)}
 .qr-actions button:hover,.qr-actions label:hover{background:var(--border)}
 .qr-actions input[type=file]{display:none}
+.qr-cam-label{font-size:11px;color:var(--text-muted);text-align:center;margin-top:8px;font-weight:500;direction:ltr}
+.qr-zoom-row{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:12.5px;color:var(--text-muted);font-weight:600}
+.qr-zoom-row input[type=range]{flex:1;accent-color:var(--primary)}
+.qr-zoom-row #qrZoomVal{min-width:36px;text-align:left;font-family:'SF Mono',Consolas,monospace;color:var(--primary)}
 .qr-error{color:var(--danger);font-size:13px;margin-top:10px;padding:10px;background:var(--danger-light);border-radius:var(--radius-sm)}
 
 /* Empty state */
@@ -384,11 +388,18 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <h3>📷 סריקת QR</h3>
     <div class="modal-info">הכוון את המצלמה לקוד QR שמכיל קישור למיקום (Google Maps / Waze / קואורדינטות)</div>
     <div id="qr-reader"><video id="qrVideo" playsinline muted></video></div>
+    <div class="qr-cam-label" id="qrCamLabel"></div>
     <div class="qr-actions">
-      <label for="qrFileInput">📁 העלה תמונה של QR
+      <label for="qrFileInput">📁 העלה תמונה
         <input type="file" id="qrFileInput" accept="image/*" onchange="scanQRFromFile(event)">
       </label>
+      <button onclick="switchScannerCamera()" id="qrSwitchBtn" style="display:none">🔄 החלף מצלמה</button>
       <button onclick="toggleQRTorch()" id="qrTorchBtn" style="display:none">🔦 פנס</button>
+    </div>
+    <div class="qr-zoom-row" id="qrZoomRow" style="display:none">
+      <span>זום</span>
+      <input type="range" id="qrZoom" min="1" max="5" step="0.1" value="1.5" oninput="setQRZoom(this.value)">
+      <span id="qrZoomVal">1.5x</span>
     </div>
     <div id="qrError" class="qr-error" style="display:none"></div>
   </div>
@@ -1437,6 +1448,8 @@ let nativeDetector = null;
 let scanCanvas = null;
 let scanCtx = null;
 let torchOn = false;
+let backCameras = [];
+let activeCameraIdx = 0;
 
 async function openScanner() {
   const modal = document.getElementById('qrScannerModal');
@@ -1456,23 +1469,40 @@ async function openScanner() {
     return;
   }
 
-  // Pick the best back camera by enumerating
-  let chosenDeviceId = null;
+  // Enumerate cameras: build list of likely back cameras for cycling
   try {
     const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
-    const back = devs.filter(d => /back|rear|environment|מאחור/i.test(d.label));
-    const pool = back.length ? back : devs;
-    // Prefer the main lens (avoid ultra-wide/macro/tele/depth)
-    const main = pool.find(d => !/wide|ultra|tele|macro|depth|0\.5|×|x\)/i.test(d.label)) || pool[0];
-    if (main && main.deviceId) chosenDeviceId = main.deviceId;
-  } catch (e) {}
-  // Stop the permission stream — we'll request the chosen device with proper constraints
+    backCameras = devs.filter(d => /back|rear|environment|מאחור|חזרה/i.test(d.label));
+    if (!backCameras.length) backCameras = devs; // labels missing — use all
+    // Sort: main first (no wide/ultra/tele/macro/depth in label)
+    backCameras.sort((a, b) => {
+      const aBad = /wide|ultra|tele|macro|depth/i.test(a.label) ? 1 : 0;
+      const bBad = /wide|ultra|tele|macro|depth/i.test(b.label) ? 1 : 0;
+      return aBad - bBad;
+    });
+    activeCameraIdx = 0;
+  } catch (e) { backCameras = []; }
   permStream.getTracks().forEach(t => t.stop());
 
-  // Now request the actual camera with hi-res + continuous focus
+  await startScannerOnCamera(activeCameraIdx);
+}
+
+async function startScannerOnCamera(idx) {
+  const errEl = document.getElementById('qrError');
+  const torchBtn = document.getElementById('qrTorchBtn');
+  const switchBtn = document.getElementById('qrSwitchBtn');
+  const camLabel = document.getElementById('qrCamLabel');
+  const zoomRow = document.getElementById('qrZoomRow');
+  const zoomInput = document.getElementById('qrZoom');
+  const zoomVal = document.getElementById('qrZoomVal');
+
+  // Stop existing stream if any
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+
+  const cam = backCameras[idx];
   const constraints = {
     video: {
-      ...(chosenDeviceId ? { deviceId: { exact: chosenDeviceId } } : { facingMode: { ideal: 'environment' } }),
+      ...(cam && cam.deviceId ? { deviceId: { exact: cam.deviceId } } : { facingMode: { ideal: 'environment' } }),
       width: { ideal: 1920 },
       height: { ideal: 1080 },
       frameRate: { ideal: 30 },
@@ -1482,10 +1512,8 @@ async function openScanner() {
   try {
     scanStream = await navigator.mediaDevices.getUserMedia(constraints);
   } catch (e) {
-    // Retry with relaxed constraints
-    try {
-      scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-    } catch (e2) {
+    try { scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); }
+    catch (e2) {
       errEl.innerHTML = 'לא הצלחתי לפתוח מצלמה.<br>' + (e2.message || e2);
       errEl.style.display = 'block';
       return;
@@ -1493,14 +1521,32 @@ async function openScanner() {
   }
 
   const track = scanStream.getVideoTracks()[0];
-  // Apply continuous autofocus if supported
-  try {
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    if (caps.focusMode && caps.focusMode.includes('continuous')) {
-      await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+
+  // Apply continuous focus + default 1.5x zoom (normalises ultra-wide & magnifies QR)
+  const advanced = [];
+  if (caps.focusMode && caps.focusMode.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+  if (caps.zoom) {
+    const target = Math.min(1.5, caps.zoom.max);
+    advanced.push({ zoom: target });
+    if (zoomInput && zoomVal) {
+      zoomInput.min = caps.zoom.min;
+      zoomInput.max = caps.zoom.max;
+      zoomInput.step = caps.zoom.step || 0.1;
+      zoomInput.value = target;
+      zoomVal.textContent = target.toFixed(1) + 'x';
+      zoomRow.style.display = 'flex';
     }
-    if (caps.torch) torchBtn.style.display = 'block';
-  } catch (e) {}
+  } else {
+    zoomRow.style.display = 'none';
+  }
+  if (advanced.length) { try { await track.applyConstraints({ advanced }); } catch (e) {} }
+
+  torchBtn.style.display = caps.torch ? 'block' : 'none';
+  switchBtn.style.display = backCameras.length > 1 ? 'block' : 'none';
+  const settings = track.getSettings ? track.getSettings() : {};
+  const lbl = (cam && cam.label) || `camera ${idx + 1}`;
+  camLabel.textContent = `📷 ${lbl} · ${settings.width || '?'}×${settings.height || '?'}${backCameras.length > 1 ? ` · ${idx + 1}/${backCameras.length}` : ''}`;
 
   const video = document.getElementById('qrVideo');
   video.srcObject = scanStream;
@@ -1574,6 +1620,21 @@ function stopScanStream() {
 function closeScanner() {
   stopScanStream();
   document.getElementById('qrScannerModal').classList.remove('show');
+}
+
+async function switchScannerCamera() {
+  if (backCameras.length < 2) { toast('יש מצלמה אחת בלבד'); return; }
+  scanActive = false;
+  activeCameraIdx = (activeCameraIdx + 1) % backCameras.length;
+  await startScannerOnCamera(activeCameraIdx);
+}
+
+async function setQRZoom(value) {
+  document.getElementById('qrZoomVal').textContent = parseFloat(value).toFixed(1) + 'x';
+  if (!scanStream) return;
+  const track = scanStream.getVideoTracks()[0];
+  try { await track.applyConstraints({ advanced: [{ zoom: parseFloat(value) }] }); }
+  catch (e) {}
 }
 
 async function toggleQRTorch() {
