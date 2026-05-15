@@ -17,9 +17,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -540,9 +540,21 @@ if (FIREBASE_CONFIGURED) {
     firebase.initializeApp(FIREBASE_CONFIG);
     auth = firebase.auth();
     db = firebase.firestore();
-    // Persistent local cache. enableMultiTabIndexedDbPersistence is deprecated in modular SDK
-    // but still the supported path on the compat SDK we use here. Warning is informational.
-    db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+    // Use the modern persistent cache API (replaces deprecated enableMultiTabIndexedDbPersistence)
+    if (firebase.firestore.persistentLocalCache && firebase.firestore.persistentMultipleTabManager) {
+      try {
+        db.settings({
+          localCache: firebase.firestore.persistentLocalCache({
+            tabManager: firebase.firestore.persistentMultipleTabManager()
+          })
+        });
+      } catch (e) {
+        // settings() throws if Firestore is already initialised — fallback to old API
+        try { db.enablePersistence({ synchronizeTabs: true }).catch(() => {}); } catch (e2) {}
+      }
+    } else {
+      try { db.enablePersistence({ synchronizeTabs: true }).catch(() => {}); } catch (e) {}
+    }
   } catch (e) { console.warn('Firebase init:', e); }
 } else {
   console.warn('Firebase not configured yet — fill FIREBASE_CONFIG to enable sign-in and saved points.');
