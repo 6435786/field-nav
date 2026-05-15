@@ -75,6 +75,17 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .project-bar .label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
 .project-select{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;font-weight:600;background:var(--surface2);color:var(--text);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='3 5 6 8 9 5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 10px center;padding-left:30px}
 .btn-icon-square{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--primary-light);color:var(--primary);border:none;border-radius:var(--radius-sm);font-size:16px;cursor:pointer;flex-shrink:0;font-family:inherit;font-weight:700}
+.more-menu{position:absolute;top:96px;left:12px;background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius-sm);box-shadow:0 4px 14px rgba(0,0,0,.15);z-index:200;min-width:200px;overflow:hidden}
+.more-menu button{display:block;width:100%;text-align:right;padding:11px 14px;background:#fff;border:none;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border)}
+.more-menu button:last-child{border-bottom:none}
+.more-menu button:hover{background:var(--surface2)}
+
+/* Imported track preview modal */
+.import-preview{padding:8px 0}
+.import-preview .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:14px}
+.import-preview .row:last-child{border:none}
+.import-preview .count{font-weight:800;color:var(--primary)}
+
 .vis-options{display:flex;flex-direction:column;gap:8px;margin-top:6px}
 .vis-opt{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid var(--border-strong);border-radius:var(--radius-sm);cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s}
 .vis-opt:has(input:checked){border-color:var(--primary);background:var(--primary-light)}
@@ -318,6 +329,13 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     </select>
     <button class="btn-icon-square" id="editProjectBtn" onclick="openEditProjectModal()" title="הגדרות פרוייקט" style="background:var(--surface2);color:var(--text-muted)">⚙️</button>
     <button class="btn-icon-square" id="addProjectBtn" onclick="openNewProjectModal()" title="פרוייקט חדש">➕</button>
+    <button class="btn-icon-square" id="moreMenuBtn" onclick="toggleMoreMenu(event)" title="ייבוא / ייצוא" style="background:var(--surface2);color:var(--text-muted)">⋮</button>
+    <input type="file" id="gpxFileInput" accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml,text/xml,application/xml" style="display:none" onchange="onGpxFileChosen(event)">
+  </div>
+  <div class="more-menu" id="moreMenu" style="display:none">
+    <button onclick="openImportFile()">📥 ייבוא GPX / KML</button>
+    <button onclick="exportCurrentAsGPX()">📤 ייצוא הפרוייקט הנוכחי</button>
+    <button onclick="clearImportedTracks()" id="clearTracksBtn" style="display:none">🧹 נקה מסלולים מיובאים</button>
   </div>
 
   <!-- QUICK INPUT -->
@@ -400,6 +418,21 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <div class="modal-actions">
       <button class="btn btn-cancel" onclick="closeModal('newProjectModal')">ביטול</button>
       <button class="btn btn-confirm" onclick="createNewProject()">צור</button>
+    </div>
+  </div>
+</div>
+
+<!-- GPX/KML import preview modal -->
+<div class="modal" id="importPreviewModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeModal('importPreviewModal')">×</button>
+    <h3>📥 קובץ נטען</h3>
+    <div class="import-preview" id="importPreviewBody"></div>
+    <label for="importTargetProject" style="margin-top:14px">להוסיף נקודות לפרוייקט:</label>
+    <select id="importTargetProject"></select>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeModal('importPreviewModal')">ביטול</button>
+      <button class="btn btn-confirm" onclick="confirmImport()" id="importConfirmBtn">הוסף</button>
     </div>
   </div>
 </div>
@@ -2042,11 +2075,242 @@ function extractCoordsFromText(text) {
   return null;
 }
 
+// ========== GPX / KML IMPORT + EXPORT ==========
+let importedTrackLayers = [];
+let pendingImport = null; // { waypoints, tracks, fileName }
+
+function toggleMoreMenu(e) {
+  e?.stopPropagation();
+  const menu = document.getElementById('moreMenu');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  // Close on outside click
+  if (menu.style.display === 'block') {
+    setTimeout(() => {
+      const closeOnce = (ev) => {
+        if (!menu.contains(ev.target) && ev.target.id !== 'moreMenuBtn') {
+          menu.style.display = 'none';
+          document.removeEventListener('click', closeOnce);
+        }
+      };
+      document.addEventListener('click', closeOnce);
+    }, 0);
+  }
+}
+
+function openImportFile() {
+  document.getElementById('moreMenu').style.display = 'none';
+  document.getElementById('gpxFileInput').click();
+}
+
+async function onGpxFileChosen(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = parseGpxOrKml(text);
+    if (!parsed.waypoints.length && !parsed.tracks.length) {
+      toast('לא נמצאו נקודות או מסלולים בקובץ', 4000);
+      return;
+    }
+    pendingImport = { ...parsed, fileName: file.name };
+    showImportPreviewModal();
+  } catch (e) {
+    toast('שגיאה בקריאת הקובץ: ' + e.message, 4500);
+  }
+}
+
+function parseGpxOrKml(text) {
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(text, 'application/xml');
+  const errNode = xml.querySelector('parsererror');
+  if (errNode) throw new Error('XML לא תקין');
+
+  const waypoints = [];
+  const tracks = [];
+
+  // GPX
+  xml.querySelectorAll('wpt').forEach(wpt => {
+    const lat = parseFloat(wpt.getAttribute('lat'));
+    const lon = parseFloat(wpt.getAttribute('lon'));
+    if (isNaN(lat) || isNaN(lon)) return;
+    const name = wpt.querySelector('name')?.textContent?.trim() || 'נקודה';
+    waypoints.push({ name, lat, lon });
+  });
+  xml.querySelectorAll('trk').forEach(trk => {
+    const name = trk.querySelector('name')?.textContent?.trim() || 'מסלול';
+    const points = [];
+    trk.querySelectorAll('trkpt').forEach(pt => {
+      const lat = parseFloat(pt.getAttribute('lat'));
+      const lon = parseFloat(pt.getAttribute('lon'));
+      if (!isNaN(lat) && !isNaN(lon)) points.push([lat, lon]);
+    });
+    if (points.length) tracks.push({ name, points });
+  });
+  xml.querySelectorAll('rte').forEach(rte => {
+    const name = rte.querySelector('name')?.textContent?.trim() || 'נתיב';
+    const points = [];
+    rte.querySelectorAll('rtept').forEach(pt => {
+      const lat = parseFloat(pt.getAttribute('lat'));
+      const lon = parseFloat(pt.getAttribute('lon'));
+      if (!isNaN(lat) && !isNaN(lon)) points.push([lat, lon]);
+    });
+    if (points.length) tracks.push({ name, points });
+  });
+
+  // KML
+  xml.querySelectorAll('Placemark').forEach(pm => {
+    const name = pm.querySelector('name')?.textContent?.trim() || '';
+    const point = pm.querySelector('Point > coordinates');
+    if (point) {
+      const parts = point.textContent.trim().split(',');
+      const lon = parseFloat(parts[0]), lat = parseFloat(parts[1]);
+      if (!isNaN(lat) && !isNaN(lon)) waypoints.push({ name: name || 'נקודה', lat, lon });
+    }
+    const line = pm.querySelector('LineString > coordinates');
+    if (line) {
+      const points = line.textContent.trim().split(/\s+/).map(c => {
+        const [lon, lat] = c.split(',').map(parseFloat);
+        return [lat, lon];
+      }).filter(([la, lo]) => !isNaN(la) && !isNaN(lo));
+      if (points.length) tracks.push({ name: name || 'מסלול', points });
+    }
+  });
+
+  return { waypoints, tracks };
+}
+
+function showImportPreviewModal() {
+  if (!pendingImport) return;
+  const body = document.getElementById('importPreviewBody');
+  body.innerHTML = `
+    <div class="row"><span>קובץ:</span><span style="direction:ltr">${pendingImport.fileName}</span></div>
+    <div class="row"><span>נקודות:</span><span class="count">${pendingImport.waypoints.length}</span></div>
+    <div class="row"><span>מסלולים:</span><span class="count">${pendingImport.tracks.length}</span></div>
+  `;
+  populateProjectDropdown(document.getElementById('importTargetProject'));
+  // If user is signed in, default to current project; otherwise disable add-points
+  const btn = document.getElementById('importConfirmBtn');
+  if (!state.user && pendingImport.waypoints.length > 0) {
+    btn.textContent = pendingImport.tracks.length ? 'הצג מסלולים בלבד' : 'אין משתמש מחובר';
+    btn.disabled = pendingImport.waypoints.length > 0 && pendingImport.tracks.length === 0;
+  } else {
+    btn.textContent = 'הוסף';
+    btn.disabled = false;
+  }
+  document.getElementById('importPreviewModal').classList.add('show');
+}
+
+async function confirmImport() {
+  if (!pendingImport) return;
+  const projId = document.getElementById('importTargetProject').value || null;
+  const { waypoints, tracks } = pendingImport;
+  closeModal('importPreviewModal');
+
+  // Render tracks on map (in-memory, not persisted)
+  if (tracks.length) renderImportedTracks(tracks);
+
+  // Save waypoints to Firestore
+  if (waypoints.length && state.user) {
+    let added = 0;
+    for (const w of waypoints) {
+      try {
+        await createPoint({ name: w.name, lat: w.lat, lon: w.lon, projectId: projId });
+        added++;
+      } catch (e) { console.warn('skip', w, e); }
+    }
+    toast(`נוספו ${added} נקודות${tracks.length ? ' + ' + tracks.length + ' מסלולים' : ''} ✓`, 3500);
+  } else if (tracks.length) {
+    toast(`${tracks.length} מסלולים על המפה ✓`, 2500);
+  }
+  pendingImport = null;
+}
+
+function renderImportedTracks(tracks) {
+  if (!leafletMap) return;
+  // Don't clear previous — append (user can clear via menu)
+  const colors = ['#dc2626', '#059669', '#7c3aed', '#d97706', '#0891b2', '#be185d'];
+  const allPoints = [];
+  tracks.forEach((t, i) => {
+    const polyline = L.polyline(t.points, {
+      color: colors[(importedTrackLayers.length + i) % colors.length],
+      weight: 4, opacity: 0.85,
+    }).addTo(leafletMap);
+    polyline.bindTooltip(t.name, { sticky: true });
+    polyline.on('click', (e) => {
+      // Tap on track → drop active point at that location
+      suppressMapMove = true;
+      document.getElementById('coordInput').value = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+      parseInputAndUpdate();
+      suppressMapMove = false;
+    });
+    importedTrackLayers.push(polyline);
+    allPoints.push(...t.points);
+  });
+  if (allPoints.length) leafletMap.fitBounds(allPoints, { padding: [40, 40] });
+  // Show "clear tracks" menu item
+  document.getElementById('clearTracksBtn').style.display = 'block';
+}
+
+function clearImportedTracks() {
+  document.getElementById('moreMenu').style.display = 'none';
+  importedTrackLayers.forEach(p => leafletMap.removeLayer(p));
+  importedTrackLayers = [];
+  document.getElementById('clearTracksBtn').style.display = 'none';
+  toast('מסלולים נוקו ✓');
+}
+
+function exportCurrentAsGPX() {
+  document.getElementById('moreMenu').style.display = 'none';
+  const id = state.currentProjectId;
+  let pts, name;
+  if (id === '__all') {
+    pts = state.points;
+    name = 'all-points';
+  } else {
+    const proj = state.projects.find(p => p.id === id);
+    pts = state.points.filter(p => p.projectId === id);
+    name = (proj?.name || 'project').replace(/[\\/:*?"<>|]/g, '_');
+  }
+  if (!pts.length) { toast('אין נקודות לייצוא'); return; }
+  const xml = pointsToGPX(pts, name);
+  downloadFile(xml, `${name}.gpx`, 'application/gpx+xml');
+  toast(`יוצא: ${pts.length} נקודות ✓`);
+}
+
+function pointsToGPX(points, projectName) {
+  const esc = s => (s == null ? '' : String(s)).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&apos;','"':'&quot;'}[c]));
+  const wpts = points.map(p =>
+    `  <wpt lat="${p.lat}" lon="${p.lon}"><name>${esc(p.name)}</name></wpt>`
+  ).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="field-nav" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>${esc(projectName)}</name><time>${new Date().toISOString()}</time></metadata>
+${wpts}
+</gpx>`;
+}
+
+function downloadFile(content, filename, mime = 'application/octet-stream') {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+// Helper used by track-click and map-click; centralised
+function parseInputAndUpdate() {
+  document.getElementById('coordInput').dispatchEvent(new Event('input'));
+}
+
 // ========== INIT ==========
 document.getElementById('qrScannerModal').addEventListener('click', (e) => {
   if (e.target.id === 'qrScannerModal') closeScanner();
 });
-['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal'].forEach(id => {
+['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal'].forEach(id => {
   const m = document.getElementById(id);
   m.addEventListener('click', (e) => { if (e.target.id === id && id !== 'authModal') closeModal(id); });
 });
