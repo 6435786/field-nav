@@ -76,7 +76,19 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .project-bar .label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
 .project-select{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;font-weight:600;background:var(--surface2);color:var(--text);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='3 5 6 8 9 5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 10px center;padding-left:30px}
 .btn-icon-square{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--primary-light);color:var(--primary);border:none;border-radius:var(--radius-sm);font-size:16px;cursor:pointer;flex-shrink:0;font-family:inherit;font-weight:700}
-.more-menu{position:absolute;top:96px;left:12px;background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius-sm);box-shadow:0 4px 14px rgba(0,0,0,.15);z-index:200;min-width:200px;overflow:hidden}
+.more-menu{position:absolute;top:96px;left:12px;background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius-sm);box-shadow:0 4px 14px rgba(0,0,0,.15);z-index:200;min-width:220px;overflow:hidden}
+.layer-checks{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.layer-checks label{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:600;background:var(--surface2)}
+.layer-checks label:has(input:checked){background:var(--primary-light);border-color:var(--primary)}
+.layer-checks input[type=checkbox]{accent-color:var(--primary)}
+.layer-checks small{color:var(--text-muted);font-weight:400;font-size:11px;margin-right:auto}
+.dl-summary{margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);font-size:13px;line-height:1.7}
+.dl-summary .num{font-weight:800;color:var(--primary)}
+.dl-progress{margin-top:14px}
+.dl-bar{height:14px;background:var(--surface2);border-radius:7px;overflow:hidden;border:1px solid var(--border)}
+.dl-bar-fill{height:100%;width:0;background:linear-gradient(90deg,var(--primary),#2563eb);transition:width .25s}
+.dl-progress-text{font-size:12.5px;color:var(--text-muted);margin-top:6px;text-align:center}
+.offline-rect-corner{background:#dc2626!important;border:none!important;border-radius:50%!important;width:14px!important;height:14px!important}
 .more-menu button{display:block;width:100%;text-align:right;padding:11px 14px;background:#fff;border:none;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border)}
 .more-menu button:last-child{border-bottom:none}
 .more-menu button:hover{background:var(--surface2)}
@@ -337,7 +349,38 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <button onclick="openImportFile()">📥 ייבוא GPX / KML</button>
     <button onclick="exportCurrentAsGPX()">📤 ייצוא הפרוייקט הנוכחי</button>
     <button onclick="clearImportedTracks()" id="clearTracksBtn" style="display:none">🧹 נקה מסלולים מיובאים</button>
+    <button onclick="openOfflineDownloader()">💾 הורד אריחי מפה לאופליין</button>
   </div>
+
+<!-- Offline tile download modal -->
+<div class="modal" id="offlineDlModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeOfflineDl()">×</button>
+    <h3>💾 הורדת מפות לאופליין</h3>
+    <div class="modal-info" id="offlineDlInfo">סמן אזור על המפה: לחץ פינה אחת ואז את הפינה הנגדית.</div>
+
+    <div id="offlineDlConfig" style="display:none">
+      <label style="margin-top:6px">שכבות להורדה</label>
+      <div class="layer-checks" id="offlineLayerChecks"></div>
+
+      <label for="offlineZoomMax" style="margin-top:14px">רמת פירוט (עד זום <span id="offlineZoomMaxLbl">15</span>)</label>
+      <input type="range" id="offlineZoomMax" min="13" max="17" step="1" value="15" oninput="updateOfflineEstimate()">
+      <small style="color:var(--text-muted);font-size:11px">זום גבוה יותר = יותר פירוט אבל הרבה יותר אריחים</small>
+
+      <div class="dl-summary" id="offlineSummary"></div>
+
+      <div class="dl-progress" id="offlineProgress" style="display:none">
+        <div class="dl-bar"><div class="dl-bar-fill" id="offlineProgressFill"></div></div>
+        <div class="dl-progress-text" id="offlineProgressText"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeOfflineDl()">ביטול</button>
+      <button class="btn btn-confirm" onclick="startOfflineDownload()" id="offlineDlBtn" disabled>הורד</button>
+    </div>
+  </div>
+</div>
 
   <!-- QUICK INPUT -->
   <div class="quick-input">
@@ -1251,6 +1294,7 @@ function initMap() {
   trackControl.addTo(leafletMap);
 
   leafletMap.on('click', (e) => {
+    if (offlineSelectionActive) { handleOfflineCornerClick(e); return; }
     const { lat, lng } = e.latlng;
     document.getElementById('coordInput').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     document.getElementById('coordInput').dispatchEvent(new Event('input'));
@@ -2334,11 +2378,178 @@ function parseInputAndUpdate() {
   document.getElementById('coordInput').dispatchEvent(new Event('input'));
 }
 
+// ========== OFFLINE TILE DOWNLOAD (Sprint 3) ==========
+// Tile templates and average size estimates per layer (KB)
+const OFFLINE_LAYERS = {
+  street: { name: 'מפת רחובות', url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png', avgKB: 18 },
+  satellite: { name: 'לוויין', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', avgKB: 60 },
+  topo: { name: 'טופוגרפי', url: 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png', avgKB: 32 },
+  hiking: { name: 'שבילי ישראל', url: 'https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', avgKB: 25 },
+};
+
+let offlineSelectionActive = false;
+let offlineCornerMarkers = [];
+let offlineRect = null;
+let offlineDownloadAbort = null;
+
+function lon2tile(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
+function lat2tile(lat, z) {
+  const r = lat * Math.PI / 180;
+  return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
+}
+
+function openOfflineDownloader() {
+  document.getElementById('moreMenu').style.display = 'none';
+  resetOfflineSelection();
+  // Build layer checkboxes
+  const wrap = document.getElementById('offlineLayerChecks');
+  wrap.innerHTML = Object.entries(OFFLINE_LAYERS).map(([key, l]) =>
+    `<label><input type="checkbox" value="${key}" checked onchange="updateOfflineEstimate()"> ${l.name} <small>${l.avgKB} KB/אריח</small></label>`
+  ).join('');
+  document.getElementById('offlineDlConfig').style.display = 'none';
+  document.getElementById('offlineDlBtn').disabled = true;
+  document.getElementById('offlineDlInfo').textContent = 'סמן אזור על המפה: לחץ על פינה אחת ואז על הפינה הנגדית.';
+  document.getElementById('offlineDlModal').classList.add('show');
+  offlineSelectionActive = true;
+  toast('לחץ על המפה לסימון פינה ראשונה', 3500);
+  // Move modal aside so map is visible while picking corners
+  document.getElementById('offlineDlModal').style.alignItems = 'flex-end';
+}
+
+function handleOfflineCornerClick(e) {
+  const m = L.circleMarker(e.latlng, { className: 'offline-rect-corner', radius: 7, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1, weight: 2 }).addTo(leafletMap);
+  offlineCornerMarkers.push(m);
+  if (offlineCornerMarkers.length === 1) {
+    toast('עכשיו לחץ על הפינה הנגדית', 3000);
+  } else if (offlineCornerMarkers.length === 2) {
+    const bounds = L.latLngBounds(offlineCornerMarkers.map(c => c.getLatLng()));
+    if (offlineRect) leafletMap.removeLayer(offlineRect);
+    offlineRect = L.rectangle(bounds, { color: '#dc2626', weight: 2, fillOpacity: 0.12 }).addTo(leafletMap);
+    offlineSelectionActive = false;
+    document.getElementById('offlineDlInfo').textContent = 'נבחר אזור. בחר שכבות + רמת פירוט והורד.';
+    document.getElementById('offlineDlConfig').style.display = 'block';
+    document.getElementById('offlineDlBtn').disabled = false;
+    document.getElementById('offlineDlModal').style.alignItems = 'center';
+    updateOfflineEstimate();
+  }
+}
+
+function resetOfflineSelection() {
+  offlineCornerMarkers.forEach(m => leafletMap.removeLayer(m));
+  offlineCornerMarkers = [];
+  if (offlineRect) { leafletMap.removeLayer(offlineRect); offlineRect = null; }
+  offlineSelectionActive = false;
+}
+
+function selectedOfflineLayers() {
+  return [...document.querySelectorAll('#offlineLayerChecks input:checked')].map(i => i.value);
+}
+
+function countTilesInBounds(bounds, minZ, maxZ) {
+  let total = 0;
+  for (let z = minZ; z <= maxZ; z++) {
+    const tn = lat2tile(bounds.getNorth(), z);
+    const ts = lat2tile(bounds.getSouth(), z);
+    const tw = lon2tile(bounds.getWest(), z);
+    const te = lon2tile(bounds.getEast(), z);
+    const cols = Math.abs(te - tw) + 1;
+    const rows = Math.abs(ts - tn) + 1;
+    total += cols * rows;
+  }
+  return total;
+}
+
+function updateOfflineEstimate() {
+  if (!offlineRect) return;
+  const maxZ = parseInt(document.getElementById('offlineZoomMax').value, 10);
+  document.getElementById('offlineZoomMaxLbl').textContent = maxZ;
+  const minZ = Math.max(10, maxZ - 4);
+  const bounds = offlineRect.getBounds();
+  const tilesPerLayer = countTilesInBounds(bounds, minZ, maxZ);
+  const layers = selectedOfflineLayers();
+  const totalTiles = tilesPerLayer * layers.length;
+  const totalKB = layers.reduce((s, k) => s + tilesPerLayer * OFFLINE_LAYERS[k].avgKB, 0);
+  const sizeStr = totalKB > 1024 ? (totalKB / 1024).toFixed(1) + ' MB' : totalKB + ' KB';
+  document.getElementById('offlineSummary').innerHTML =
+    `אריחים לשכבה: <span class="num">${tilesPerLayer.toLocaleString()}</span> · ` +
+    `שכבות: <span class="num">${layers.length}</span> · ` +
+    `סה"כ אריחים: <span class="num">${totalTiles.toLocaleString()}</span><br>` +
+    `נפח משוער: <span class="num">~${sizeStr}</span> · רמות זום: ${minZ}-${maxZ}`;
+  document.getElementById('offlineDlBtn').disabled = layers.length === 0 || totalTiles === 0;
+}
+
+async function startOfflineDownload() {
+  if (!offlineRect) return;
+  const layers = selectedOfflineLayers();
+  if (!layers.length) { toast('בחר לפחות שכבה אחת'); return; }
+  const maxZ = parseInt(document.getElementById('offlineZoomMax').value, 10);
+  const minZ = Math.max(10, maxZ - 4);
+  const bounds = offlineRect.getBounds();
+
+  // Build list of all (layer, z, x, y)
+  const jobs = [];
+  for (const key of layers) {
+    const layer = OFFLINE_LAYERS[key];
+    for (let z = minZ; z <= maxZ; z++) {
+      const tn = lat2tile(bounds.getNorth(), z);
+      const ts = lat2tile(bounds.getSouth(), z);
+      const tw = lon2tile(bounds.getWest(), z);
+      const te = lon2tile(bounds.getEast(), z);
+      for (let x = Math.min(tw, te); x <= Math.max(tw, te); x++) {
+        for (let y = Math.min(tn, ts); y <= Math.max(tn, ts); y++) {
+          jobs.push(layer.url.replace('{z}', z).replace('{x}', x).replace('{y}', y));
+        }
+      }
+    }
+  }
+
+  document.getElementById('offlineDlBtn').disabled = true;
+  document.getElementById('offlineProgress').style.display = 'block';
+  const fill = document.getElementById('offlineProgressFill');
+  const text = document.getElementById('offlineProgressText');
+  let done = 0, failed = 0;
+  const total = jobs.length;
+  offlineDownloadAbort = new AbortController();
+
+  // Throttled parallel fetches (8 at a time). Each fetch goes through SW which caches it.
+  const CONCURRENCY = 8;
+  const chunks = [];
+  for (let i = 0; i < jobs.length; i += CONCURRENCY) chunks.push(jobs.slice(i, i + CONCURRENCY));
+
+  for (const chunk of chunks) {
+    if (offlineDownloadAbort.signal.aborted) break;
+    await Promise.all(chunk.map(url =>
+      fetch(url, { signal: offlineDownloadAbort.signal, mode: 'cors' })
+        .then(r => { if (!r.ok) failed++; })
+        .catch(() => failed++)
+        .finally(() => {
+          done++;
+          fill.style.width = (done / total * 100).toFixed(1) + '%';
+          text.textContent = `${done.toLocaleString()} / ${total.toLocaleString()} אריחים${failed ? ` (${failed} נכשלו)` : ''}`;
+        })
+    ));
+  }
+
+  if (offlineDownloadAbort.signal.aborted) {
+    toast('הורדה בוטלה', 2500);
+  } else {
+    toast(`הורדה הושלמה: ${done - failed} אריחים${failed ? `, ${failed} נכשלו` : ''}`, 4000);
+    setTimeout(closeOfflineDl, 1500);
+  }
+  offlineDownloadAbort = null;
+}
+
+function closeOfflineDl() {
+  if (offlineDownloadAbort) offlineDownloadAbort.abort();
+  resetOfflineSelection();
+  document.getElementById('offlineDlModal').classList.remove('show');
+}
+
 // ========== INIT ==========
 document.getElementById('qrScannerModal').addEventListener('click', (e) => {
   if (e.target.id === 'qrScannerModal') closeScanner();
 });
-['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal'].forEach(id => {
+['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal','offlineDlModal'].forEach(id => {
   const m = document.getElementById(id);
   m.addEventListener('click', (e) => { if (e.target.id === id && id !== 'authModal') closeModal(id); });
 });
