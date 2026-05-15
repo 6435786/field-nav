@@ -74,7 +74,14 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .project-bar{background:var(--surface);padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);flex-shrink:0}
 .project-bar .label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
 .project-select{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;font-weight:600;background:var(--surface2);color:var(--text);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='3 5 6 8 9 5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 10px center;padding-left:30px}
-.btn-icon-square{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--primary-light);color:var(--primary);border:none;border-radius:var(--radius-sm);font-size:18px;cursor:pointer;flex-shrink:0;font-family:inherit;font-weight:700}
+.btn-icon-square{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--primary-light);color:var(--primary);border:none;border-radius:var(--radius-sm);font-size:16px;cursor:pointer;flex-shrink:0;font-family:inherit;font-weight:700}
+.vis-options{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.vis-opt{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid var(--border-strong);border-radius:var(--radius-sm);cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s}
+.vis-opt:has(input:checked){border-color:var(--primary);background:var(--primary-light)}
+.vis-opt input[type=radio]{margin-top:3px;flex-shrink:0;accent-color:var(--primary)}
+.vis-opt span{display:flex;flex-direction:column;gap:1px}
+.vis-opt b{font-size:14px;color:var(--text);font-weight:700}
+.vis-opt small{font-size:11.5px;color:var(--text-muted);font-weight:400}
 .btn-icon-square:hover{background:#dce4f7}
 .btn-icon-square:disabled{opacity:.4;cursor:not-allowed}
 
@@ -309,6 +316,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <select class="project-select" id="projectSelect" onchange="onProjectChange()">
       <option value="__all">כל הנקודות</option>
     </select>
+    <button class="btn-icon-square" id="editProjectBtn" onclick="openEditProjectModal()" title="הגדרות פרוייקט" style="background:var(--surface2);color:var(--text-muted)">⚙️</button>
     <button class="btn-icon-square" id="addProjectBtn" onclick="openNewProjectModal()" title="פרוייקט חדש">➕</button>
   </div>
 
@@ -379,9 +387,44 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <h3>פרוייקט חדש</h3>
     <label for="newProjectName">שם הפרוייקט</label>
     <input type="text" id="newProjectName" placeholder="לדוגמה: חיפוש רחפן נחל אוג" maxlength="60">
+
+    <label style="margin-top:14px">פרטיות</label>
+    <div class="vis-options">
+      <label class="vis-opt"><input type="radio" name="newProjectVis" value="private" checked><span><b>🔒 פרטי</b><small>רק אתה והמשתמשים שתשתף איתם</small></span></label>
+      <label class="vis-opt"><input type="radio" name="newProjectVis" value="public"><span><b>🌐 ציבורי</b><small>כל המשתמשים המחוברים לאפליקציה</small></span></label>
+    </div>
+
+    <label for="newProjectShared" style="margin-top:14px">שיתוף עם משתמשים נוספים <small style="color:var(--text-muted);font-weight:400">(רלוונטי רק אם פרטי, אופציונלי)</small></label>
+    <input type="text" id="newProjectShared" placeholder="אימייל@gmail.com, אימייל2@gmail.com" autocomplete="off" dir="ltr">
+
     <div class="modal-actions">
       <button class="btn btn-cancel" onclick="closeModal('newProjectModal')">ביטול</button>
       <button class="btn btn-confirm" onclick="createNewProject()">צור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit project modal (rename / change visibility / share) -->
+<div class="modal" id="editProjectModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeModal('editProjectModal')">×</button>
+    <h3>הגדרות פרוייקט</h3>
+    <label for="editProjectName">שם</label>
+    <input type="text" id="editProjectName" maxlength="60">
+
+    <label style="margin-top:14px">פרטיות</label>
+    <div class="vis-options">
+      <label class="vis-opt"><input type="radio" name="editProjectVis" value="private"><span><b>🔒 פרטי</b><small>רק אתה והמשתמשים שתשתף איתם</small></span></label>
+      <label class="vis-opt"><input type="radio" name="editProjectVis" value="public"><span><b>🌐 ציבורי</b><small>כל המשתמשים המחוברים</small></span></label>
+    </div>
+
+    <label for="editProjectShared" style="margin-top:14px">משותף עם <small style="color:var(--text-muted);font-weight:400">(אימיילים מופרדים בפסיק)</small></label>
+    <input type="text" id="editProjectShared" autocomplete="off" dir="ltr">
+
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="onDeleteProject()" style="margin-left:auto">🗑 מחק פרוייקט</button>
+      <button class="btn btn-cancel" onclick="closeModal('editProjectModal')">ביטול</button>
+      <button class="btn btn-confirm" onclick="saveProjectEdit()">שמור</button>
     </div>
   </div>
 </div>
@@ -489,6 +532,7 @@ const state = {
   unsavedMarker: null,
   pendingCoords: null,       // for add-point dialog
   editingPointId: null,
+  editingProjectId: null,
 };
 
 // ========== UTILS ==========
@@ -623,14 +667,38 @@ if (auth) {
 }
 
 // ========== FIRESTORE: PROJECTS ==========
-let projectsUnsub = null;
+// Visibility model: each project is 'public' (any signed-in user) or 'private'
+// (owner + emails in sharedWithEmails). To match Firestore rules we run several
+// queries in parallel and union the results client-side.
+let projectsUnsubs = [];
 function subscribeToProjects() {
   if (!db) return;
-  if (projectsUnsub) projectsUnsub();
-  projectsUnsub = db.collection('nav_projects').orderBy('createdAt', 'desc').onSnapshot(snap => {
-    state.projects = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  projectsUnsubs.forEach(u => u()); projectsUnsubs = [];
+  if (!state.user) { state.projects = []; renderProjectSelector(); return; }
+
+  const docMap = new Map();
+  const apply = () => {
+    state.projects = Array.from(docMap.values()).sort((a, b) =>
+      (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
     renderProjectSelector();
-  }, err => console.warn('projects subscribe:', err));
+  };
+  const handler = snap => {
+    snap.docChanges().forEach(c => {
+      if (c.type === 'removed') docMap.delete(c.doc.id);
+      else docMap.set(c.doc.id, { id: c.doc.id, ...c.doc.data() });
+    });
+    apply();
+  };
+  const onErr = label => err => console.warn('projects ' + label + ':', err.message || err);
+  const myEmail = state.user.email?.toLowerCase();
+  const col = db.collection('nav_projects');
+
+  projectsUnsubs.push(col.where('visibility', '==', 'public').onSnapshot(handler, onErr('public')));
+  projectsUnsubs.push(col.where('owner', '==', state.user.uid).onSnapshot(handler, onErr('owned')));
+  projectsUnsubs.push(col.where('createdBy', '==', state.user.uid).onSnapshot(handler, onErr('legacy')));
+  if (myEmail) {
+    projectsUnsubs.push(col.where('sharedWithEmails', 'array-contains', myEmail).onSnapshot(handler, onErr('shared')));
+  }
 }
 
 async function createNewProject() {
@@ -638,21 +706,54 @@ async function createNewProject() {
   const name = input.value.trim();
   if (!name) { toast('הזן שם פרוייקט'); return; }
   if (!state.user) { toast('יש להתחבר כדי ליצור פרוייקט'); return; }
+  // Visibility from radio
+  const vis = document.querySelector('input[name="newProjectVis"]:checked')?.value || 'private';
+  // Optional shared emails (parsed from comma-separated input)
+  const sharedRaw = document.getElementById('newProjectShared')?.value || '';
+  const sharedEmails = sharedRaw.split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
   try {
     const ref = await db.collection('nav_projects').add({
       name,
-      createdBy: state.user.uid,
-      createdByEmail: state.user.email,
+      owner: state.user.uid,
+      ownerEmail: state.user.email,
+      createdBy: state.user.uid,            // legacy
+      createdByEmail: state.user.email,     // legacy
+      visibility: vis,
+      sharedWithEmails: sharedEmails,       // emails (uids resolved on-write of points)
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     state.currentProjectId = ref.id;
     closeModal('newProjectModal');
     input.value = '';
+    document.getElementById('newProjectShared').value = '';
     toast('פרוייקט נוצר ✓');
     subscribeToPoints();
   } catch (e) {
     toast('שגיאה ביצירת פרוייקט: ' + e.message, 4000);
   }
+}
+
+async function updateProjectVisibility(projectId, visibility, sharedEmails) {
+  if (!db) return;
+  return db.collection('nav_projects').doc(projectId).update({
+    visibility,
+    sharedWithEmails: sharedEmails,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+async function deleteProjectDoc(projectId) {
+  if (!db) return;
+  // Cascade: delete all points in this project (batched)
+  const snap = await db.collection('nav_points').where('projectId', '==', projectId).get();
+  const batch = db.batch();
+  snap.docs.forEach(d => batch.delete(d.ref));
+  batch.delete(db.collection('nav_projects').doc(projectId));
+  return batch.commit();
+}
+
+function isProjectOwnedByMe(p) {
+  return state.user && (p.owner === state.user.uid || p.createdBy === state.user.uid);
 }
 
 function renderProjectSelector() {
@@ -662,7 +763,9 @@ function renderProjectSelector() {
   state.projects.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
-    opt.textContent = p.name;
+    const visIcon = p.visibility === 'public' ? '🌐' : '🔒';
+    const ownerMark = isProjectOwnedByMe(p) ? '' : ' • משותף';
+    opt.textContent = `${visIcon} ${p.name}${ownerMark}`;
     sel.appendChild(opt);
   });
   // Restore selection if still exists
@@ -671,6 +774,14 @@ function renderProjectSelector() {
   } else {
     sel.value = '__all';
     state.currentProjectId = '__all';
+  }
+  // Enable edit button only for owned projects
+  const editBtn = document.getElementById('editProjectBtn');
+  if (editBtn) {
+    const selectedProj = state.projects.find(p => p.id === current);
+    const canEdit = current !== '__all' && selectedProj && isProjectOwnedByMe(selectedProj);
+    editBtn.disabled = !canEdit;
+    editBtn.style.opacity = canEdit ? '1' : '0.4';
   }
   // Update edit point's project dropdown too
   populateProjectDropdown(document.getElementById('newPointProject'));
@@ -695,34 +806,59 @@ function onProjectChange() {
   state.currentProjectId = document.getElementById('projectSelect').value;
   state.selectedForAzimuth = [];
   subscribeToPoints();
+  renderProjectSelector(); // refresh edit-button enabled state
 }
 
 // ========== FIRESTORE: POINTS ==========
-let pointsUnsub = null;
+let pointsUnsubs = [];
 function subscribeToPoints() {
   if (!db) return;
-  if (pointsUnsub) pointsUnsub();
-  let q;
-  if (state.currentProjectId === '__all') {
-    q = db.collection('nav_points').orderBy('createdAt', 'desc');
-  } else {
-    q = db.collection('nav_points').where('projectId', '==', state.currentProjectId);
-  }
-  pointsUnsub = q.onSnapshot(snap => {
-    state.points = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  pointsUnsubs.forEach(u => u()); pointsUnsubs = [];
+  if (!state.user) { state.points = []; renderPointsOnMap(); return; }
+
+  const docMap = new Map();
+  const apply = () => {
+    state.points = Array.from(docMap.values()).sort((a, b) =>
+      (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
     renderPointsOnMap();
     refreshSheetIfActive();
-  }, err => console.warn('points subscribe:', err));
+  };
+  const handler = snap => {
+    snap.docChanges().forEach(c => {
+      if (c.type === 'removed') docMap.delete(c.doc.id);
+      else docMap.set(c.doc.id, { id: c.doc.id, ...c.doc.data() });
+    });
+    apply();
+  };
+  const onErr = label => err => console.warn('points ' + label + ':', err.message || err);
+  const myEmail = state.user.email?.toLowerCase();
+  const col = db.collection('nav_points');
+  const projectFilter = q => state.currentProjectId === '__all' ? q : q.where('projectId', '==', state.currentProjectId);
+
+  pointsUnsubs.push(projectFilter(col.where('visibility', '==', 'public')).onSnapshot(handler, onErr('public')));
+  pointsUnsubs.push(projectFilter(col.where('owner', '==', state.user.uid)).onSnapshot(handler, onErr('owned')));
+  pointsUnsubs.push(projectFilter(col.where('createdBy', '==', state.user.uid)).onSnapshot(handler, onErr('legacy')));
+  if (myEmail) {
+    pointsUnsubs.push(projectFilter(col.where('sharedWithEmails', 'array-contains', myEmail)).onSnapshot(handler, onErr('shared')));
+  }
 }
 
 async function createPoint({ name, lat, lon, projectId }) {
   if (!state.user) { toast('יש להתחבר כדי לשמור'); return; }
+  // Inherit visibility + sharing from the parent project (denormalized for fast reads)
+  const project = projectId ? state.projects.find(p => p.id === projectId) : null;
+  const visibility = project?.visibility || 'private';
+  const sharedWithEmails = project?.sharedWithEmails || [];
   return db.collection('nav_points').add({
     name: name.trim(),
     lat, lon,
     projectId: projectId || null,
-    createdBy: state.user.uid,
-    createdByEmail: state.user.email,
+    owner: state.user.uid,
+    ownerEmail: state.user.email,
+    createdBy: state.user.uid,            // legacy
+    createdByEmail: state.user.email,     // legacy
+    visibility,
+    sharedWithEmails,
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
 }
@@ -788,8 +924,77 @@ async function confirmAddPoint() {
 function openNewProjectModal() {
   if (!state.user) { toast('יש להתחבר עם גוגל'); return; }
   document.getElementById('newProjectName').value = '';
+  document.getElementById('newProjectShared').value = '';
+  // Default radio back to private
+  const r = document.querySelector('input[name="newProjectVis"][value="private"]');
+  if (r) r.checked = true;
   document.getElementById('newProjectModal').classList.add('show');
   setTimeout(() => document.getElementById('newProjectName').focus(), 50);
+}
+
+function openEditProjectModal() {
+  if (!state.user) { toast('יש להתחבר'); return; }
+  const id = state.currentProjectId;
+  if (!id || id === '__all') { toast('בחר פרוייקט מהרשימה'); return; }
+  const p = state.projects.find(x => x.id === id);
+  if (!p) return;
+  if (!isProjectOwnedByMe(p)) { toast('רק היוצר יכול לערוך פרוייקט זה', 3500); return; }
+  state.editingProjectId = id;
+  document.getElementById('editProjectName').value = p.name || '';
+  const vis = p.visibility || 'private';
+  const r = document.querySelector(`input[name="editProjectVis"][value="${vis}"]`);
+  if (r) r.checked = true;
+  document.getElementById('editProjectShared').value = (p.sharedWithEmails || []).join(', ');
+  document.getElementById('editProjectModal').classList.add('show');
+}
+
+async function saveProjectEdit() {
+  const id = state.editingProjectId;
+  if (!id) return;
+  const name = document.getElementById('editProjectName').value.trim();
+  if (!name) { toast('שם לא יכול להיות ריק'); return; }
+  const vis = document.querySelector('input[name="editProjectVis"]:checked')?.value || 'private';
+  const sharedRaw = document.getElementById('editProjectShared').value || '';
+  const sharedEmails = sharedRaw.split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+  try {
+    await db.collection('nav_projects').doc(id).update({
+      name, visibility: vis, sharedWithEmails: sharedEmails,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    // Cascade: update visibility/sharing on all points in this project
+    const snap = await db.collection('nav_points').where('projectId', '==', id).get();
+    if (snap.size) {
+      const batch = db.batch();
+      snap.docs.forEach(d => batch.update(d.ref, { visibility: vis, sharedWithEmails: sharedEmails }));
+      await batch.commit();
+    }
+    closeModal('editProjectModal');
+    toast('עודכן ✓');
+  } catch (e) {
+    toast('שגיאה: ' + e.message, 4500);
+  }
+}
+
+async function onDeleteProject() {
+  const id = state.editingProjectId;
+  if (!id) return;
+  const p = state.projects.find(x => x.id === id);
+  if (!p) return;
+  const pointsInProj = state.points.filter(pt => pt.projectId === id).length;
+  const msg = pointsInProj
+    ? `למחוק את "${p.name}" ו-${pointsInProj} נקודות שלו?`
+    : `למחוק את "${p.name}"?`;
+  if (!confirm(msg)) return;
+  try {
+    await deleteProjectDoc(id);
+    state.currentProjectId = '__all';
+    state.editingProjectId = null;
+    closeModal('editProjectModal');
+    toast('נמחק ✓');
+    subscribeToPoints();
+  } catch (e) {
+    toast('שגיאה במחיקה: ' + e.message, 4500);
+  }
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
@@ -1841,7 +2046,7 @@ function extractCoordsFromText(text) {
 document.getElementById('qrScannerModal').addEventListener('click', (e) => {
   if (e.target.id === 'qrScannerModal') closeScanner();
 });
-['authModal','newProjectModal','addPointModal','editPointModal'].forEach(id => {
+['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal'].forEach(id => {
   const m = document.getElementById(id);
   m.addEventListener('click', (e) => { if (e.target.id === id && id !== 'authModal') closeModal(id); });
 });
