@@ -36,7 +36,45 @@
   --shadow:0 4px 12px rgba(0,0,0,.08);
   --shadow-lg:0 8px 24px rgba(0,0,0,.15);
   --radius:12px;--radius-sm:8px;
+  --map-tile-filter:none;
 }
+[data-theme="dark"]{
+  --primary:#3b82f6;--primary-dark:#2563eb;--primary-light:rgba(59,130,246,.2);
+  --success:#10b981;--success-light:rgba(16,185,129,.18);
+  --danger:#ef4444;--danger-light:rgba(239,68,68,.18);
+  --info:#22d3ee;--info-light:rgba(34,211,238,.16);
+  --warn:#f59e0b;--warn-light:rgba(245,158,11,.18);
+  --gold:#fbbf24;--gold-light:rgba(251,191,36,.18);
+  --bg:#0f172a;--surface:#1e293b;--surface2:#293548;
+  --border:#334155;--border-strong:#475569;
+  --text:#f1f5f9;--text-muted:#94a3b8;--text-light:#64748b;
+  --shadow:0 4px 12px rgba(0,0,0,.45);
+  --shadow-lg:0 10px 30px rgba(0,0,0,.6);
+  --map-tile-filter:brightness(.85) saturate(.9);
+}
+/* Smooth transitions when toggling theme */
+body,.app,.app-header,.project-bar,.quick-input,.sheet,.modal-content,.card,.coord-input,.btn,.btn-primary,.btn-secondary,.btn-danger,.btn-confirm,.btn-cancel,select,input,.more-menu,.more-menu button{transition:background-color .2s,color .15s,border-color .2s}
+
+/* Dark-mode overrides for surfaces hardcoded as #fff */
+[data-theme="dark"] .more-menu,
+[data-theme="dark"] .more-menu button,
+[data-theme="dark"] .sheet,
+[data-theme="dark"] .modal-content,
+[data-theme="dark"] .leaflet-control-tracking,
+[data-theme="dark"] .url-fallback-url,
+[data-theme="dark"] .url-fallback-actions .btn-dismiss-url{background:var(--surface);color:var(--text)}
+[data-theme="dark"] .coord-input:focus{background:var(--surface)}
+[data-theme="dark"] .vis-opt{background:var(--surface2)}
+
+/* Dark-mode for Leaflet built-in controls (their own white CSS) */
+[data-theme="dark"] .leaflet-bar a,
+[data-theme="dark"] .leaflet-control-layers{background:var(--surface);color:var(--text);border-color:var(--border)}
+[data-theme="dark"] .leaflet-bar a:hover{background:var(--surface2)}
+[data-theme="dark"] .leaflet-control-attribution{background:rgba(15,23,42,.7)!important;color:var(--text-muted)!important}
+[data-theme="dark"] .leaflet-control-attribution a{color:var(--text-light)!important}
+
+/* Optional: subtly dim raster tiles (street/topo/hiking — not satellite) so they're easier on the eyes at night */
+[data-theme="dark"] .leaflet-tile-pane{filter:var(--map-tile-filter)}
 html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:var(--text);direction:rtl;font-size:16px;-webkit-tap-highlight-color:transparent;overflow:hidden}
 
 /* ========== APP SHELL ========== */
@@ -350,6 +388,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <button onclick="exportCurrentAsGPX()">📤 ייצוא הפרוייקט הנוכחי</button>
     <button onclick="clearImportedTracks()" id="clearTracksBtn" style="display:none">🧹 נקה מסלולים מיובאים</button>
     <button onclick="openOfflineDownloader()">💾 הורד אריחי מפה לאופליין</button>
+    <button onclick="toggleTheme()" id="themeToggleBtn">🌙 מצב לילה</button>
   </div>
 
 <!-- Offline tile download modal -->
@@ -2377,6 +2416,35 @@ function downloadFile(content, filename, mime = 'application/octet-stream') {
 function parseInputAndUpdate() {
   document.getElementById('coordInput').dispatchEvent(new Event('input'));
 }
+
+// ========== THEME (light / dark) ==========
+const THEME_KEY = 'fieldnav.theme';
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.textContent = theme === 'dark' ? '☀️ מצב יום' : '🌙 מצב לילה';
+  // Update mobile chrome theme color
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', theme === 'dark' ? '#0f172a' : '#1a56db');
+}
+function toggleTheme() {
+  document.getElementById('moreMenu').style.display = 'none';
+  const cur = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = cur === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  localStorage.setItem(THEME_KEY, next);
+}
+// Init theme: saved preference > system preference > light
+(function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === 'dark' || saved === 'light') {
+    applyTheme(saved);
+  } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    applyTheme('dark');
+  } else {
+    applyTheme('light');
+  }
+})();
 
 // ========== OFFLINE TILE DOWNLOAD (Sprint 3) ==========
 // Tile templates and average size estimates per layer (KB)
