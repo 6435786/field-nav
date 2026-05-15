@@ -1,6 +1,6 @@
 // field-nav service worker — offline shell + cached library code
 // Bump CACHE_VERSION on every release that ships changes to the cached files.
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const SHELL_CACHE = `fieldnav-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `fieldnav-runtime-${CACHE_VERSION}`;
 
@@ -17,9 +17,9 @@ const SHELL_FILES = [
 // Third-party libraries we want available offline (cached on first request).
 // Match by hostname so query strings / version paths still hit cache.
 const RUNTIME_HOSTS = [
-  'cdnjs.cloudflare.com',          // proj4, qrcodejs, jsQR, leaflet css/js
+  'cdnjs.cloudflare.com',          // proj4, qrcodejs, leaflet css/js
+  'cdn.jsdelivr.net',               // jsQR
   'unpkg.com',                      // (just in case)
-  'cdn.jsdelivr.net',               // (just in case)
   'fonts.googleapis.com',           // Heebo CSS
   'fonts.gstatic.com',              // Heebo font files
   'www.gstatic.com',                // firebase-app/auth/firestore compat
