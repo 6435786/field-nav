@@ -534,13 +534,27 @@ const FIREBASE_CONFIG = {
 };
 const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "REPLACE_ME";
 
+// Silence one specific Firebase noise: the enableMultiTabIndexedDbPersistence deprecation
+// notice. The replacement API (FirestoreSettings.cache + persistentLocalCache helpers) isn't
+// reliably exposed on the compat SDK we use here, so we still call the old function on purpose.
+// All other Firebase warnings still surface normally.
+(function silenceFirebaseDeprecation() {
+  const _origWarn = console.warn;
+  console.warn = function (...args) {
+    const msg = args.map(a => (typeof a === 'string' ? a : '')).join(' ');
+    if (msg.includes('enableMultiTabIndexedDbPersistence') && msg.includes('FirestoreSettings.cache')) return;
+    return _origWarn.apply(this, args);
+  };
+})();
+
 let db = null, auth = null;
 if (FIREBASE_CONFIGURED) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
     auth = firebase.auth();
     db = firebase.firestore();
-    // Use the modern persistent cache API (replaces deprecated enableMultiTabIndexedDbPersistence)
+    // Try modern cache API first; fall back to the old enablePersistence (compat SDK path)
+    let modernCacheOK = false;
     if (firebase.firestore.persistentLocalCache && firebase.firestore.persistentMultipleTabManager) {
       try {
         db.settings({
@@ -548,11 +562,10 @@ if (FIREBASE_CONFIGURED) {
             tabManager: firebase.firestore.persistentMultipleTabManager()
           })
         });
-      } catch (e) {
-        // settings() throws if Firestore is already initialised — fallback to old API
-        try { db.enablePersistence({ synchronizeTabs: true }).catch(() => {}); } catch (e2) {}
-      }
-    } else {
+        modernCacheOK = true;
+      } catch (e) { /* fall through */ }
+    }
+    if (!modernCacheOK) {
       try { db.enablePersistence({ synchronizeTabs: true }).catch(() => {}); } catch (e) {}
     }
   } catch (e) { console.warn('Firebase init:', e); }
