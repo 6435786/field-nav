@@ -201,6 +201,10 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .active-point-marker{background:none!important;border:none!important}
 .active-pin{width:30px;height:30px;background:#dc2626;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4)}
 
+/* Profile peak marker */
+.peak-marker{background:none!important;border:none!important;display:flex;align-items:flex-end;justify-content:center}
+.peak-tri{color:#dc2626;font-size:24px;font-weight:900;text-shadow:0 1px 2px rgba(255,255,255,.9),0 -1px 2px rgba(0,0,0,.4);line-height:1}
+
 /* User location marker */
 .user-location-marker{background:none!important;border:none!important}
 .user-arrow-wrap{width:40px;height:40px;position:relative;transition:transform .18s ease-out}
@@ -273,6 +277,20 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 
 .elevation-mini{display:flex;align-items:center;gap:8px;padding:9px 12px;background:linear-gradient(135deg,var(--info-light) 0%,transparent 100%);border-radius:var(--radius-sm);margin-bottom:10px;border:1px solid #a5f3fc}
 .nav-info-card{background:linear-gradient(135deg,var(--info-light) 0%,var(--surface) 100%);border:1px solid #a5f3fc;border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:10px;display:flex;flex-direction:column;gap:7px}
+.profile-btn{background:var(--primary);color:#fff;border:none;padding:5px 11px;border-radius:14px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+.profile-btn:disabled{background:var(--border-strong);color:var(--text-muted);cursor:not-allowed}
+.profile-btn:hover:not(:disabled){background:var(--primary-dark)}
+.profile-graph-btn{background:var(--primary-light);color:var(--primary);border:none;padding:3px 9px;border-radius:12px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;margin-right:6px}
+.profile-graph-btn:hover{background:var(--primary);color:#fff}
+
+/* Floating elevation profile chart */
+.elev-chart-panel{position:absolute;top:10px;left:10px;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;padding:8px 10px 4px;width:300px;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:560;display:none}
+.elev-chart-panel.visible{display:block}
+.elev-chart-header{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--text-muted);font-weight:600;margin-bottom:4px}
+.elev-chart-header .close{background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;padding:0 4px;line-height:1}
+.elev-chart-header .close:hover{color:var(--text)}
+#elevChart{width:100%;height:120px;display:block}
+.elev-chart-foot{font-size:10.5px;color:var(--text-muted);text-align:center;margin-top:2px;font-family:'SF Mono',Consolas,monospace;direction:ltr}
 .nav-info-row{display:flex;align-items:center;gap:9px;font-size:13px;line-height:1.3}
 .nav-info-row .nii{font-size:17px;width:22px;text-align:center;flex-shrink:0}
 .nav-info-row .nil{color:var(--text-muted);font-weight:500;flex-shrink:0;min-width:118px}
@@ -450,6 +468,14 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <div id="leafletMap"></div>
     <div class="map-pin-msg" id="mapPinMsg">📍 נבחרה נקודה</div>
     <button class="show-sheet-btn" id="showSheetBtn" onclick="reopenActivePointSheet()">📍 הצג פרטים</button>
+    <div class="elev-chart-panel" id="elevChartPanel">
+      <div class="elev-chart-header">
+        <span>פרופיל גובה לאורך הקו</span>
+        <button class="close" onclick="hideElevationChart()" aria-label="סגור">×</button>
+      </div>
+      <canvas id="elevChart" width="560" height="200"></canvas>
+      <div class="elev-chart-foot" id="elevChartFoot"></div>
+    </div>
 
     <!-- Bottom sheet (active point) -->
     <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
@@ -1288,6 +1314,7 @@ document.getElementById('coordInput').addEventListener('input', () => {
       if (state.activePoint && !state.activePoint.isSaved) {
         if (state.unsavedMarker) { leafletMap.removeLayer(state.unsavedMarker); state.unsavedMarker = null; }
         state.activePoint = null;
+        clearElevationProfile();
         document.getElementById('pointSheet').classList.remove('show');
         document.getElementById('sheetBackdrop').classList.remove('show');
         document.getElementById('showSheetBtn')?.classList.remove('visible');
@@ -1433,6 +1460,7 @@ function setActiveUnsavedPoint(lat, lon, fromMapClick = false, suggestedName = n
     suggestedName: suggestedName || pendingUrlName || null
   };
   pendingUrlName = null;
+  clearElevationProfile(); // any prior profile is for a different point — drop it
   if (state.unsavedMarker) leafletMap.removeLayer(state.unsavedMarker);
   state.unsavedMarker = L.marker([lat, lon], {
     icon: L.divIcon({
@@ -1638,6 +1666,7 @@ function renderSheet() {
     <div class="nav-info-row"><span class="nii">⛰️</span><span class="nil">גובה בנקודה:</span><span class="niv" id="navElev"><span class="spinner"></span></span></div>
     <div class="nav-info-row"><span class="nii">↕️</span><span class="nil">הפרש גובה ממך:</span><span class="niv" id="navDelta"><span class="muted">—</span></span></div>
     <div class="nav-info-row"><span class="nii">🧭</span><span class="nil">מרחק ואזימוט ממך:</span><span class="niv" id="navDistAz"><span class="muted">—</span></span></div>
+    <div class="nav-info-row" id="profileRow"><span class="nii">📈</span><span class="nil">גובה מקס׳ בקו:</span><span class="niv" id="navProfile"><button class="profile-btn" onclick="computeElevationProfile()" id="profileBtn" disabled>חשב</button></span></div>
   </div>`;
 
   // Conversions (collapsible)
@@ -1720,6 +1749,184 @@ async function fetchElevations(points, abortSignal) {
 }
 
 let navInfoAbort = null;
+// ========== ELEVATION PROFILE ==========
+let profileLine = null;       // Leaflet polyline for the straight-line route
+let profilePeakMarker = null; // 🔺 marker for the highest point
+let lastProfileData = null;   // { samples:[{lat,lon,elev,distM}], maxIdx, userElev }
+
+function clearElevationProfile() {
+  if (profileLine) { leafletMap.removeLayer(profileLine); profileLine = null; }
+  if (profilePeakMarker) { leafletMap.removeLayer(profilePeakMarker); profilePeakMarker = null; }
+  lastProfileData = null;
+  hideElevationChart();
+}
+
+async function computeElevationProfile() {
+  const userPos = state.livePosition;
+  const p = state.activePoint;
+  if (!userPos || !p) {
+    toast('צריך מיקום נוכחי + נקודה פעילה', 2500);
+    return;
+  }
+  const btn = document.getElementById('profileBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ מחשב...'; }
+
+  // Sample 100 points along the straight line, linearly in lat/lon (good enough for short distances)
+  const N = 100;
+  const samples = [];
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    samples.push({
+      lat: userPos.lat + (p.lat - userPos.lat) * t,
+      lon: userPos.lon + (p.lon - userPos.lon) * t,
+    });
+  }
+
+  try {
+    const elevs = await fetchElevations(samples);
+    if (!elevs || elevs.length !== N) {
+      toast('שגיאה בקריאת הגבהים מ-OpenTopoData', 3500);
+      if (btn) { btn.disabled = false; btn.textContent = 'נסה שוב'; }
+      return;
+    }
+    // Annotate samples with elev + cumulative distance
+    let maxIdx = 0, maxElev = -Infinity;
+    let cum = 0;
+    for (let i = 0; i < N; i++) {
+      samples[i].elev = elevs[i];
+      samples[i].distM = i === 0 ? 0 : (cum += distanceM(samples[i-1].lat, samples[i-1].lon, samples[i].lat, samples[i].lon));
+      if (typeof elevs[i] === 'number' && elevs[i] > maxElev) { maxElev = elevs[i]; maxIdx = i; }
+    }
+    const userElev = typeof elevs[0] === 'number' ? elevs[0] : null;
+    lastProfileData = { samples, maxIdx, userElev };
+
+    // Update the nav-info row
+    const peak = samples[maxIdx];
+    const navProfile = document.getElementById('navProfile');
+    if (navProfile) {
+      const deltaToUser = (userElev != null && typeof peak.elev === 'number') ? Math.round(peak.elev - userElev) : null;
+      let deltaTxt = '';
+      if (deltaToUser !== null) {
+        const sign = deltaToUser >= 0 ? '+' : '';
+        const cls = deltaToUser > 5 ? 'up' : (deltaToUser < -5 ? 'down' : '');
+        const icon = deltaToUser > 5 ? '⬆' : (deltaToUser < -5 ? '⬇' : '➖');
+        deltaTxt = ` <span class="muted">·</span> <b class="${cls}">${icon} ${sign}${deltaToUser} מ׳ ממך</b>`;
+      }
+      navProfile.innerHTML = `<b>${Math.round(peak.elev)} מ׳</b>${deltaTxt} <button class="profile-graph-btn" onclick="showElevationChart()">📊 גרף</button>`;
+    }
+
+    // Draw line on map
+    if (profileLine) leafletMap.removeLayer(profileLine);
+    profileLine = L.polyline(
+      [[userPos.lat, userPos.lon], [p.lat, p.lon]],
+      { color: '#1a56db', weight: 3, opacity: 0.8, dashArray: '6,4' }
+    ).addTo(leafletMap);
+
+    // Peak marker
+    if (profilePeakMarker) leafletMap.removeLayer(profilePeakMarker);
+    profilePeakMarker = L.marker([peak.lat, peak.lon], {
+      icon: L.divIcon({
+        className: 'peak-marker',
+        html: '<div class="peak-tri">▲</div>',
+        iconSize: [30,30], iconAnchor: [15,28]
+      }),
+      zIndexOffset: 600,
+    }).addTo(leafletMap);
+    profilePeakMarker.bindTooltip(`גובה מקס׳: ${Math.round(peak.elev)} מ׳`, { permanent: false, direction: 'top' });
+
+    if (btn) { btn.disabled = true; btn.textContent = '✓'; }
+  } catch (e) {
+    toast('שגיאה: ' + (e.message || e), 3500);
+    if (btn) { btn.disabled = false; btn.textContent = 'נסה שוב'; }
+  }
+}
+
+function showElevationChart() {
+  const data = lastProfileData;
+  if (!data) return;
+  const panel = document.getElementById('elevChartPanel');
+  const canvas = document.getElementById('elevChart');
+  const foot = document.getElementById('elevChartFoot');
+  panel.classList.add('visible');
+
+  // Match canvas pixel size to displayed size for crispness
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 280;
+  const cssH = 120;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const { samples, maxIdx } = data;
+  const elevs = samples.map(s => s.elev).filter(v => typeof v === 'number');
+  if (!elevs.length) return;
+  const minE = Math.min(...elevs), maxE = Math.max(...elevs);
+  const range = Math.max(1, maxE - minE);
+  const totalDist = samples[samples.length - 1].distM;
+
+  const padL = 28, padR = 8, padT = 6, padB = 18;
+  const w = cssW - padL - padR;
+  const h = cssH - padT - padB;
+
+  const x = i => padL + (samples[i].distM / totalDist) * w;
+  const y = e => padT + h - ((e - minE) / range) * h;
+
+  // Background fill (gradient under curve)
+  const grad = ctx.createLinearGradient(0, padT, 0, padT + h);
+  grad.addColorStop(0, 'rgba(26,86,219,.35)');
+  grad.addColorStop(1, 'rgba(26,86,219,.05)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(padL, padT + h);
+  samples.forEach((s, i) => { if (typeof s.elev === 'number') ctx.lineTo(x(i), y(s.elev)); });
+  ctx.lineTo(padL + w, padT + h);
+  ctx.closePath();
+  ctx.fill();
+
+  // Line
+  ctx.strokeStyle = '#1a56db';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  samples.forEach((s, i) => {
+    if (typeof s.elev !== 'number') return;
+    const xi = x(i), yi = y(s.elev);
+    if (i === 0) ctx.moveTo(xi, yi); else ctx.lineTo(xi, yi);
+  });
+  ctx.stroke();
+
+  // Peak marker
+  const peakX = x(maxIdx), peakY = y(samples[maxIdx].elev);
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath();
+  ctx.arc(peakX, peakY, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.font = 'bold 10px Heebo, sans-serif';
+  ctx.fillStyle = '#dc2626';
+  ctx.textAlign = peakX > cssW / 2 ? 'right' : 'left';
+  ctx.fillText(`${Math.round(samples[maxIdx].elev)} מ׳`, peakX + (peakX > cssW / 2 ? -6 : 6), Math.max(10, peakY - 4));
+
+  // Y-axis labels (min / max)
+  ctx.fillStyle = getComputedStyle(document.body).color || '#64748b';
+  ctx.font = '9.5px Heebo, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(`${Math.round(maxE)}`, padL - 3, padT + 7);
+  ctx.fillText(`${Math.round(minE)}`, padL - 3, padT + h);
+
+  // X-axis distance labels
+  ctx.textAlign = 'center';
+  ctx.fillText('אתה', padL, padT + h + 12);
+  ctx.fillText(fmtDistance(totalDist), padL + w, padT + h + 12);
+
+  foot.textContent = `${samples.length} דגימות · SRTM 30m`;
+}
+
+function hideElevationChart() {
+  document.getElementById('elevChartPanel')?.classList.remove('visible');
+}
+
 async function loadNavInfo(lat, lon) {
   const elevEl = document.getElementById('navElev');
   const deltaEl = document.getElementById('navDelta');
@@ -1741,6 +1948,19 @@ async function loadNavInfo(lat, lon) {
   // Elevations — one API call for point (and user if known)
   elevEl.innerHTML = '<span class="spinner"></span>';
   deltaEl.innerHTML = hasUser ? '<span class="spinner"></span>' : '<span class="muted">לחץ "📍 מיקום נוכחי" כדי לחשב</span>';
+
+  // "Calculate heights along the line" — only enabled when we have both user GPS and an active point
+  const profileBtn = document.getElementById('profileBtn');
+  if (profileBtn) {
+    if (hasUser) {
+      profileBtn.disabled = false;
+      // Reset label only if we don't already have a result on screen
+      if (!lastProfileData) profileBtn.textContent = 'חשב';
+    } else {
+      profileBtn.disabled = true;
+      profileBtn.textContent = 'צריך מיקום נוכחי';
+    }
+  }
 
   if (navInfoAbort) navInfoAbort.abort();
   navInfoAbort = new AbortController();
