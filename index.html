@@ -1200,18 +1200,39 @@ function parseDMS(str) {
   return null;
 }
 
+// Pull the first URL + a cleaned-up "name" suggestion from mixed-text shares
+// (e.g. WhatsApp Waze share: "נסיעה עם Waze אל ירוק, שביל ישראל: https://waze.com/...")
+function extractUrlAndName(input) {
+  const m = input.match(/https?:\/\/\S+/);
+  if (!m) return { url: null, name: null };
+  const url = m[0];
+  let rest = (input.slice(0, m.index) + ' ' + input.slice(m.index + url.length));
+  // Strip common share prefixes (Hebrew + English)
+  rest = rest.replace(/(?:^|\s)נסיעה\s*עם\s*Waze\s*אל\s*/gi, ' ');
+  rest = rest.replace(/(?:^|\s)Drive(?:\s+to)?\s+(?:.*?\s+)?with\s+Waze\s*[:,]?\s*/gi, ' ');
+  rest = rest.replace(/(?:^|\s)פתח\s+ב[־\-]?(?:Waze|Google\s*Maps|גוגל\s*מפות)\s*[:,]?\s*/gi, ' ');
+  rest = rest.replace(/(?:^|\s)Open\s+in\s+(?:Waze|Google\s*Maps)\s*[:,]?\s*/gi, ' ');
+  rest = rest.replace(/(?:^|\s)Google\s*Maps\s*[:,]?\s*/gi, ' ');
+  rest = rest.replace(/(?:^|\s)📍\s*/g, ' ');
+  // Trim punctuation/whitespace from edges
+  rest = rest.replace(/^[\s:,;\.\-—–]+|[\s:,;\.\-—–]+$/g, '').trim();
+  return { url, name: rest || null };
+}
+
 function detectAndParse(input) {
   if (!input || !input.trim()) return null;
-  // URL (Google Maps / Waze / geo:)
-  if (/^(https?|geo):/i.test(input.trim()) || /https?:\/\//i.test(input)) {
-    const c = extractCoordsFromText(input);
+  // URL detection — runs FIRST so stray letters like "S" in "Waze" don't trigger DMS
+  if (/https?:\/\//i.test(input) || /^geo:/i.test(input.trim())) {
+    const { url, name } = extractUrlAndName(input);
+    const probe = url || input;
+    const c = extractCoordsFromText(probe);
     if (c) {
       const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
-      if (!isNaN(lat) && !isNaN(lon)) return { type: 'מקישור', latLon: [lat, lon] };
+      if (!isNaN(lat) && !isNaN(lon)) return { type: 'מקישור', latLon: [lat, lon], suggestedName: name };
     }
-    if (/^(https?|geo):/i.test(input.trim())) {
-      return { error: 'לא חולצו קואורדינטות מהקישור — הקישור מקוצר? פתח אותו ונסה את הכתובת המלאה' };
-    }
+    // Couldn't extract directly — caller will try async tryExpandUrl. Carry the name forward via state.
+    pendingUrlName = name;
+    return null;
   }
   if (/[°'"NSEW]/i.test(input)) {
     const r = parseDMS(input);
@@ -1251,6 +1272,7 @@ function detectAndParse(input) {
 // Live parse feedback
 let parseTimer;
 let lastExpandedUrl = null;
+let pendingUrlName = null; // suggested name from the most recent share-text parse
 document.getElementById('coordInput').addEventListener('input', () => {
   clearTimeout(parseTimer);
   parseTimer = setTimeout(async () => {
@@ -1261,35 +1283,41 @@ document.getElementById('coordInput').addEventListener('input', () => {
     if (r && !r.error) {
       mini.textContent = `✓ ${r.type}: ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)}`;
       mini.className = 'detected-mini';
-      setActiveUnsavedPoint(r.latLon[0], r.latLon[1]);
+      setActiveUnsavedPoint(r.latLon[0], r.latLon[1], false, r.suggestedName);
       updateAddPointBtn();
       return;
     }
-    // If parse failed AND input looks like a URL, auto-attempt redirect expansion
-    // (handles maps.app.goo.gl, goo.gl/maps, me-qr.com, etc.)
-    const isUrl = /^https?:\/\//i.test(input.trim());
-    if (isUrl && input.trim() !== lastExpandedUrl) {
-      mini.textContent = '⏳ מנסה להרחיב קישור מקוצר...';
-      mini.className = 'detected-mini';
-      lastExpandedUrl = input.trim();
-      try {
-        const coords = await tryExpandUrl(input.trim());
-        // Only apply if the input is still the same URL (user might have edited meanwhile)
-        if (document.getElementById('coordInput').value === input && coords) {
-          const lat = parseFloat(coords[0]), lon = parseFloat(coords[1]);
-          mini.textContent = `✓ מקישור מקוצר: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-          mini.className = 'detected-mini';
-          setActiveUnsavedPoint(lat, lon);
+    // If parse failed AND input contains a URL anywhere (not just at the start),
+    // auto-attempt redirect expansion (handles maps.app.goo.gl, waze.com/ul/...,
+    // me-qr.com, Hebrew share-text with URL embedded, etc.)
+    const urlMatch = input.match(/https?:\/\/\S+/);
+    if (urlMatch) {
+      const url = urlMatch[0];
+      // Re-extract the name suggestion since detectAndParse may not have stored one
+      // when there was no immediate match
+      const nameFromShare = extractUrlAndName(input).name;
+      if (url !== lastExpandedUrl) {
+        mini.textContent = '⏳ מנסה להרחיב קישור מקוצר...';
+        mini.className = 'detected-mini';
+        lastExpandedUrl = url;
+        try {
+          const coords = await tryExpandUrl(url);
+          if (document.getElementById('coordInput').value === input && coords) {
+            const lat = parseFloat(coords[0]), lon = parseFloat(coords[1]);
+            mini.textContent = `✓ מקישור מקוצר: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+            mini.className = 'detected-mini';
+            setActiveUnsavedPoint(lat, lon, false, nameFromShare);
+            updateAddPointBtn();
+            return;
+          }
+        } catch (e) { /* fall through to error */ }
+        if (document.getElementById('coordInput').value === input) {
+          mini.textContent = '⚠️ לא הצלחתי להרחיב את הקישור. פתח אותו בדפדפן והעתק את הכתובת המלאה.';
+          mini.className = 'detected-mini error';
           updateAddPointBtn();
-          return;
         }
-      } catch (e) { /* fall through to error */ }
-      if (document.getElementById('coordInput').value === input) {
-        mini.textContent = '⚠️ לא הצלחתי להרחיב את הקישור. פתח אותו בדפדפן והעתק את הכתובת המלאה.';
-        mini.className = 'detected-mini error';
-        updateAddPointBtn();
+        return;
       }
-      return;
     }
     if (r && r.error) {
       mini.textContent = '⚠️ ' + r.error;
@@ -1374,8 +1402,13 @@ function initMap() {
   setTimeout(() => leafletMap.invalidateSize(), 100);
 }
 
-function setActiveUnsavedPoint(lat, lon, fromMapClick = false) {
-  state.activePoint = { lat, lon, isSaved: false, name: 'נקודה לא שמורה' };
+function setActiveUnsavedPoint(lat, lon, fromMapClick = false, suggestedName = null) {
+  state.activePoint = {
+    lat, lon, isSaved: false,
+    name: 'נקודה לא שמורה',
+    suggestedName: suggestedName || pendingUrlName || null
+  };
+  pendingUrlName = null;
   if (state.unsavedMarker) leafletMap.removeLayer(state.unsavedMarker);
   state.unsavedMarker = L.marker([lat, lon], {
     icon: L.divIcon({
@@ -1753,7 +1786,9 @@ function addUnsavedToCollection() {
   if (!state.user) { toast('יש להתחבר עם גוגל כדי לשמור'); return; }
   state.pendingCoords = { lat: p.lat, lon: p.lon };
   document.getElementById('addPointCoords').textContent = `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`;
-  document.getElementById('newPointName').value = '';
+  // Pre-fill with the name extracted from the share text (e.g. Waze/WhatsApp paste).
+  // Empty if user typed raw coords / picked from map — leaves the field blank.
+  document.getElementById('newPointName').value = p.suggestedName || '';
   populateProjectDropdown(document.getElementById('newPointProject'));
   document.getElementById('addPointModal').classList.add('show');
   setTimeout(() => document.getElementById('newPointName').focus(), 50);
