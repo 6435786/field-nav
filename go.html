@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1a56db">
+<title>פתיחת מיקום</title>
+<link rel="icon" href="icon-192.png">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,'Heebo',sans-serif;background:#f0f4f8;color:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:18px;text-align:center;direction:rtl}
+.card{background:#fff;border-radius:16px;padding:26px 22px;max-width:380px;width:100%;box-shadow:0 6px 22px rgba(0,0,0,.1)}
+.pin{font-size:36px;margin-bottom:6px}
+h1{font-size:14px;color:#64748b;font-weight:600;margin-bottom:10px}
+.name{font-size:20px;font-weight:800;color:#0f172a;margin-bottom:4px;line-height:1.25}
+.coords{font-family:'SF Mono',Consolas,monospace;font-size:13px;color:#64748b;direction:ltr;margin-bottom:18px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;margin-bottom:9px;border:none;cursor:pointer;font-family:inherit;color:#fff}
+.btn:active{transform:scale(.98)}
+.btn-main{background:#1a56db}
+.btn-waze{background:#33ccff;color:#0c2540}
+.btn-google{background:#4285f4}
+.btn-apple{background:#000}
+.more{color:#64748b;font-size:12px;text-decoration:none;display:inline-block;margin-top:12px;padding:6px}
+.more:hover{color:#1a56db}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #e2e8f0;border-top-color:#1a56db;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-left:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.note{font-size:11px;color:#94a3b8;margin-top:10px;line-height:1.5}
+.err{color:#dc2626;font-weight:600}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="pin">📍</div>
+  <h1>מיקום שיתפו איתך</h1>
+  <div class="name" id="name"></div>
+  <div class="coords" id="coords">טוען...</div>
+  <a class="btn btn-main" id="openBtn" href="#">🗺️ פתח באפליקציית מפה</a>
+  <a class="btn btn-waze" id="wazeBtn" href="#">🚗 פתח ב-Waze</a>
+  <a class="btn btn-google" id="googleBtn" href="#">🌐 פתח ב-Google Maps</a>
+  <a class="btn btn-apple" id="appleBtn" href="#" style="display:none">🍎 פתח ב-Apple Maps</a>
+  <a class="more" href="#" id="fnLink">פרטים מלאים ב-field-nav ⟵</a>
+  <div class="note" id="note"></div>
+</div>
+<script>
+(function() {
+  const params = new URLSearchParams(location.search);
+  const q = params.get('q');
+  const name = params.get('name') || params.get('label') || '';
+  if (!q) {
+    document.getElementById('coords').innerHTML = '<span class="err">אין קואורדינטות בקישור</span>';
+    return;
+  }
+  const parts = q.split(/[,\s]+/).map(parseFloat);
+  const lat = parts[0], lon = parts[1];
+  if (isNaN(lat) || isNaN(lon)) {
+    document.getElementById('coords').innerHTML = '<span class="err">קואורדינטות לא תקינות</span>';
+    return;
+  }
+
+  if (name) document.getElementById('name').textContent = name;
+  else document.getElementById('name').style.display = 'none';
+  document.getElementById('coords').textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+
+  const geoUri = `geo:${lat},${lon}?q=${lat},${lon}${name ? '(' + encodeURIComponent(name) + ')' : ''}`;
+  const googleUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+  const wazeUrl = `https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
+  const appleUrl = `https://maps.apple.com/?ll=${lat},${lon}${name ? '&q=' + encodeURIComponent(name) : ''}`;
+
+  // Main button: geo: on Android (triggers OS chooser), Apple Maps on iOS, Google on desktop
+  document.getElementById('openBtn').href = isAndroid ? geoUri : (isIOS ? appleUrl : googleUrl);
+  document.getElementById('wazeBtn').href = wazeUrl;
+  document.getElementById('googleBtn').href = googleUrl;
+  document.getElementById('appleBtn').href = appleUrl;
+  if (isIOS) document.getElementById('appleBtn').style.display = 'flex';
+  document.getElementById('fnLink').href = `./?q=${lat},${lon}${name ? '&name=' + encodeURIComponent(name) : ''}`;
+
+  // Auto-fire geo: intent on Android — most browsers will pop the "open with" chooser immediately.
+  // If blocked or no app handles geo:, user lands here and sees the buttons.
+  if (isAndroid) {
+    document.getElementById('note').innerHTML = '<span class="spinner"></span> פותח את בחירת האפליקציה...';
+    setTimeout(() => { window.location.href = geoUri; }, 120);
+    // After 1.5s with no navigation, assume something blocked and hide the spinner
+    setTimeout(() => {
+      const n = document.getElementById('note');
+      if (n) n.textContent = 'אם לא נפתח אוטומטית — בחר אפליקציה מהכפתורים למעלה';
+    }, 1500);
+  } else if (isIOS) {
+    document.getElementById('note').textContent = 'בחר אפליקציית מפה';
+  }
+})();
+</script>
+</body>
+</html>

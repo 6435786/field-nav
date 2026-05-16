@@ -1666,14 +1666,15 @@ function openAsLocation() {
 }
 
 function buildShareableNavUrl(p) {
-  // Self-hosted URL: receiver lands inside field-nav with this point preloaded,
-  // and from there can hit "פתח באפליקציית מפה" to get the OS app-chooser
-  // (Waze / Google Maps / OFF ROAD / etc), just like a WhatsApp location share.
-  const base = location.origin + location.pathname;
+  // Use the minimal go.html landing page. On Android it immediately fires a geo: intent
+  // which surfaces the OS "open with..." chooser (Waze / Google Maps / OFF ROAD / etc) —
+  // the same dialog WhatsApp triggers when you tap a shared location. If something blocks
+  // the auto-fire, the page falls back to big direct-open buttons.
+  const base = location.origin + location.pathname.replace(/index\.html$/, '');
   const params = new URLSearchParams();
   params.set('q', `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`);
   if (p.name && p.name !== 'נקודה לא שמורה') params.set('name', p.name);
-  return `${base}?${params.toString()}`;
+  return `${base}go.html?${params.toString()}`;
 }
 
 async function shareLink() {

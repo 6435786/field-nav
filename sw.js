@@ -1,6 +1,6 @@
 // field-nav service worker — offline shell + cached library code
 // Bump CACHE_VERSION on every release that ships changes to the cached files.
-const CACHE_VERSION = 'v11';
+const CACHE_VERSION = 'v12';
 const SHELL_CACHE = `fieldnav-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `fieldnav-runtime-${CACHE_VERSION}`;
 
@@ -8,6 +8,7 @@ const RUNTIME_CACHE = `fieldnav-runtime-${CACHE_VERSION}`;
 const SHELL_FILES = [
   './',
   './index.html',
+  './go.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
