@@ -1664,7 +1664,6 @@ function renderSheet() {
   // Navigation info: elevation at point + delta to user + distance/azimuth from user
   html += `<div class="nav-info-card">
     <div class="nav-info-row"><span class="nii">⛰️</span><span class="nil">גובה בנקודה:</span><span class="niv" id="navElev"><span class="spinner"></span></span></div>
-    <div class="nav-info-row"><span class="nii">↕️</span><span class="nil">הפרש גובה ממך:</span><span class="niv" id="navDelta"><span class="muted">—</span></span></div>
     <div class="nav-info-row"><span class="nii">🧭</span><span class="nil">מרחק ואזימוט ממך:</span><span class="niv" id="navDistAz"><span class="muted">—</span></span></div>
     <div class="nav-info-row" id="profileRow"><span class="nii">📈</span><span class="nil">גובה מקס׳ בקו:</span><span class="niv" id="navProfile"><button class="profile-btn" onclick="computeElevationProfile()" id="profileBtn" disabled>חשב</button></span></div>
   </div>`;
@@ -1837,7 +1836,8 @@ async function computeElevationProfile() {
       }),
       zIndexOffset: 600,
     }).addTo(leafletMap);
-    profilePeakMarker.bindTooltip(`גובה מקס׳: ${Math.round(peak.elev)} מ׳`, { permanent: false, direction: 'top' });
+    const peakTooltip = formatElevationWithDelta(peak.elev, userElev) || `${Math.round(peak.elev)} מ׳`;
+    profilePeakMarker.bindTooltip(`גובה מקס׳: ${peakTooltip}`, { permanent: false, direction: 'top' });
 
     if (btn) { btn.disabled = true; btn.textContent = '✓'; }
   } catch (e) {
@@ -1932,11 +1932,22 @@ function hideElevationChart() {
   document.getElementById('elevChartPanel')?.classList.remove('visible');
 }
 
+// Build the merged "absolute elevation + delta from you" string.
+// Used by both the nav-info card and the peak marker tooltip.
+function formatElevationWithDelta(pointElev, userElev) {
+  if (typeof pointElev !== 'number') return null;
+  const main = `${Math.round(pointElev)} מ׳`;
+  if (typeof userElev !== 'number') return main;
+  const delta = pointElev - userElev;
+  const sign = delta >= 0 ? '+' : '';
+  const icon = delta > 5 ? '⬆' : (delta < -5 ? '⬇' : '➖');
+  return `${main} (${icon} ${sign}${Math.round(delta)} ממך)`;
+}
+
 async function loadNavInfo(lat, lon) {
   const elevEl = document.getElementById('navElev');
-  const deltaEl = document.getElementById('navDelta');
   const distAzEl = document.getElementById('navDistAz');
-  if (!elevEl || !deltaEl || !distAzEl) return;
+  if (!elevEl || !distAzEl) return;
 
   const userPos = state.livePosition;
   const hasUser = !!userPos && typeof userPos.lat === 'number';
@@ -1950,16 +1961,13 @@ async function loadNavInfo(lat, lon) {
     distAzEl.innerHTML = `<span class="muted">לחץ "📍 מיקום נוכחי" כדי לחשב</span>`;
   }
 
-  // Elevations — one API call for point (and user if known)
   elevEl.innerHTML = '<span class="spinner"></span>';
-  deltaEl.innerHTML = hasUser ? '<span class="spinner"></span>' : '<span class="muted">לחץ "📍 מיקום נוכחי" כדי לחשב</span>';
 
   // "Calculate heights along the line" — only enabled when we have both user GPS and an active point
   const profileBtn = document.getElementById('profileBtn');
   if (profileBtn) {
     if (hasUser) {
       profileBtn.disabled = false;
-      // Reset label only if we don't already have a result on screen
       if (!lastProfileData) profileBtn.textContent = 'חשב';
     } else {
       profileBtn.disabled = true;
@@ -1979,24 +1987,22 @@ async function loadNavInfo(lat, lon) {
     const userElev = hasUser ? arr[1] : null;
 
     if (typeof pointElev === 'number') {
-      elevEl.innerHTML = `<b>${Math.round(pointElev)}</b> <span class="muted">מ׳ מעל פני הים</span>`;
+      const main = `<b>${Math.round(pointElev)}</b> <span class="muted">מ׳ מעל פני הים</span>`;
+      if (hasUser && typeof userElev === 'number') {
+        const delta = pointElev - userElev;
+        const sign = delta >= 0 ? '+' : '';
+        const cls = delta > 5 ? 'up' : (delta < -5 ? 'down' : '');
+        const icon = delta > 5 ? '⬆' : (delta < -5 ? '⬇' : '➖');
+        elevEl.innerHTML = `${main} <span class="muted">·</span> <b class="${cls}">${icon} ${sign}${Math.round(delta)} מ׳ ממך</b>`;
+      } else {
+        elevEl.innerHTML = main;
+      }
     } else {
       elevEl.innerHTML = '<span class="muted">—</span>';
-    }
-
-    if (hasUser && typeof pointElev === 'number' && typeof userElev === 'number') {
-      const delta = pointElev - userElev;
-      const sign = delta >= 0 ? '+' : '';
-      const cls = delta > 5 ? 'up' : (delta < -5 ? 'down' : '');
-      const icon = delta > 5 ? '⬆' : (delta < -5 ? '⬇' : '➖');
-      deltaEl.innerHTML = `<b class="${cls}">${icon} ${sign}${Math.round(delta)} מ׳</b> <span class="muted">(אתה ${Math.round(userElev)} מ׳)</span>`;
-    } else if (hasUser) {
-      deltaEl.innerHTML = '<span class="muted">—</span>';
     }
   } catch (e) {
     if (e && e.name === 'AbortError') return;
     elevEl.innerHTML = '<span class="muted">אין רשת</span>';
-    if (hasUser) deltaEl.innerHTML = '<span class="muted">אין רשת</span>';
   }
 }
 
