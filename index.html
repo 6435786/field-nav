@@ -248,7 +248,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .btn-primary-big:active{transform:scale(.98)}
 
 /* Secondary action grid */
-.action-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+.action-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:6px;margin-bottom:12px}
 .action-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:9px 4px;background:var(--surface2);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;text-align:center}
 .action-btn:hover{background:var(--border)}
 .action-btn .ic{font-size:18px;line-height:1}
@@ -283,14 +283,8 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .profile-graph-btn{background:var(--primary-light);color:var(--primary);border:none;padding:3px 9px;border-radius:12px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;margin-right:6px}
 .profile-graph-btn:hover{background:var(--primary);color:#fff}
 
-/* Floating elevation profile chart */
-.elev-chart-panel{position:absolute;top:10px;left:10px;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;padding:8px 10px 4px;width:300px;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:560;display:none}
-.elev-chart-panel.visible{display:block}
-.elev-chart-header{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--text-muted);font-weight:600;margin-bottom:4px}
-.elev-chart-header .close{background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;padding:0 4px;line-height:1}
-.elev-chart-header .close:hover{color:var(--text)}
-#elevChart{width:100%;height:120px;display:block}
-.elev-chart-foot{font-size:10.5px;color:var(--text-muted);text-align:center;margin-top:2px;font-family:'SF Mono',Consolas,monospace;direction:ltr}
+/* Elevation profile chart (rendered inside its modal) */
+.elev-chart-foot{font-size:11px;color:var(--text-muted);text-align:center;font-family:'SF Mono',Consolas,monospace;direction:ltr}
 .nav-info-row{display:flex;align-items:center;gap:9px;font-size:13px;line-height:1.3}
 .nav-info-row .nii{font-size:17px;width:22px;text-align:center;flex-shrink:0}
 .nav-info-row .nil{color:var(--text-muted);font-weight:500;flex-shrink:0;min-width:118px}
@@ -468,14 +462,6 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <div id="leafletMap"></div>
     <div class="map-pin-msg" id="mapPinMsg">📍 נבחרה נקודה</div>
     <button class="show-sheet-btn" id="showSheetBtn" onclick="reopenActivePointSheet()">📍 הצג פרטים</button>
-    <div class="elev-chart-panel" id="elevChartPanel">
-      <div class="elev-chart-header">
-        <span>פרופיל גובה לאורך הקו</span>
-        <button class="close" onclick="hideElevationChart()" aria-label="סגור">×</button>
-      </div>
-      <canvas id="elevChart" width="560" height="200"></canvas>
-      <div class="elev-chart-foot" id="elevChartFoot"></div>
-    </div>
 
     <!-- Bottom sheet (active point) -->
     <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
@@ -547,6 +533,25 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
       <button class="btn btn-cancel" onclick="closeModal('importPreviewModal')">ביטול</button>
       <button class="btn btn-confirm" onclick="confirmImport()" id="importConfirmBtn">הוסף</button>
     </div>
+  </div>
+</div>
+
+<!-- Conversions popup (WGS84 / ITM / UTM with copy buttons) -->
+<div class="modal" id="conversionsModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeModal('conversionsModal')">×</button>
+    <h3>📐 המרות קואורדינטות</h3>
+    <div id="conversionsModalBody" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- Elevation profile chart modal -->
+<div class="modal" id="elevChartModal">
+  <div class="modal-content" style="max-width:600px">
+    <button class="modal-close" onclick="hideElevationChart()">×</button>
+    <h3>📈 פרופיל גובה לאורך הקו</h3>
+    <canvas id="elevChart" style="width:100%;height:240px;display:block;margin-top:8px"></canvas>
+    <div class="elev-chart-foot" id="elevChartFoot" style="margin-top:6px"></div>
   </div>
 </div>
 
@@ -1649,12 +1654,12 @@ function renderSheet() {
   html += `<div class="action-row">`;
   html += `<button class="action-btn" onclick="shareLink()"><span class="ic">🔗</span><span>שתף</span></button>`;
   html += `<button class="action-btn" onclick="toggleInlineQR()"><span class="ic">📱</span><span>QR</span></button>`;
+  html += `<button class="action-btn" onclick="openConversionsModal()"><span class="ic">📐</span><span>המרות</span></button>`;
   if (isSaved) {
     html += `<button class="action-btn" onclick="openEditPointModal(state.activePoint)"><span class="ic">✎</span><span>ערוך</span></button>`;
     html += `<button class="action-btn danger" onclick="deletePointFromSheet()"><span class="ic">🗑</span><span>מחק</span></button>`;
   } else {
     html += `<button class="action-btn" onclick="addUnsavedToCollection()" ${state.user ? '' : 'disabled'}><span class="ic">➕</span><span>הוסף</span></button>`;
-    html += `<button class="action-btn" onclick="closeSheet()"><span class="ic">✕</span><span>סגור</span></button>`;
   }
   html += `</div>`;
 
@@ -1668,17 +1673,7 @@ function renderSheet() {
     <div class="nav-info-row" id="profileRow"><span class="nii">📈</span><span class="nil">גובה מקס׳ בקו:</span><span class="niv" id="navProfile"><button class="profile-btn" onclick="computeElevationProfile()" id="profileBtn" disabled>חשב</button></span></div>
   </div>`;
 
-  // Conversions (collapsible)
-  const itm = proj4('EPSG:4326', 'EPSG:2039', [p.lon, p.lat]);
-  const utm = proj4('EPSG:4326', 'EPSG:32636', [p.lon, p.lat]);
-  const wgsStr = `${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`;
-  const itmStr = `${Math.round(itm[0])}, ${Math.round(itm[1])}`;
-  const utmStr = `${Math.round(utm[0])}, ${Math.round(utm[1])}`;
-  html += `<details class="conversions"><summary>המרות (WGS84 / ITM / UTM)</summary><div class="conv-content">
-    ${convRow('WGS84', wgsStr, 'lat, lon')}
-    ${convRow('ITM', itmStr, 'east, north')}
-    ${convRow('UTM 36N', utmStr, 'east, north')}
-  </div></details>`;
+  // (Conversions moved to a popup — "📐 המרות" button in the action row)
 
   body.innerHTML = html;
 
@@ -1849,87 +1844,108 @@ async function computeElevationProfile() {
 function showElevationChart() {
   const data = lastProfileData;
   if (!data) return;
-  const panel = document.getElementById('elevChartPanel');
+  const modal = document.getElementById('elevChartModal');
   const canvas = document.getElementById('elevChart');
   const foot = document.getElementById('elevChartFoot');
-  panel.classList.add('visible');
+  modal.classList.add('show');
 
-  // Match canvas pixel size to displayed size for crispness
-  const dpr = window.devicePixelRatio || 1;
-  const cssW = canvas.clientWidth || 280;
-  const cssH = 120;
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-  canvas.style.height = cssH + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, cssW, cssH);
+  // Render after the modal is on-screen so clientWidth reflects the real layout
+  requestAnimationFrame(() => {
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth || 520;
+    const cssH = 240;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas.style.height = cssH + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
 
-  const { samples, maxIdx } = data;
-  const elevs = samples.map(s => s.elev).filter(v => typeof v === 'number');
-  if (!elevs.length) return;
-  const minE = Math.min(...elevs), maxE = Math.max(...elevs);
-  const range = Math.max(1, maxE - minE);
-  const totalDist = samples[samples.length - 1].distM;
+    const { samples, maxIdx, userElev } = data;
+    const elevs = samples.map(s => s.elev).filter(v => typeof v === 'number');
+    if (!elevs.length) return;
+    const minE = Math.min(...elevs), maxE = Math.max(...elevs);
+    const range = Math.max(1, maxE - minE);
+    const totalDist = samples[samples.length - 1].distM;
 
-  const padL = 28, padR = 8, padT = 6, padB = 18;
-  const w = cssW - padL - padR;
-  const h = cssH - padT - padB;
+    const padL = 40, padR = 14, padT = 14, padB = 28;
+    const w = cssW - padL - padR;
+    const h = cssH - padT - padB;
 
-  const x = i => padL + (samples[i].distM / totalDist) * w;
-  const y = e => padT + h - ((e - minE) / range) * h;
+    const x = i => padL + (samples[i].distM / totalDist) * w;
+    const y = e => padT + h - ((e - minE) / range) * h;
 
-  // Background fill (gradient under curve)
-  const grad = ctx.createLinearGradient(0, padT, 0, padT + h);
-  grad.addColorStop(0, 'rgba(26,86,219,.35)');
-  grad.addColorStop(1, 'rgba(26,86,219,.05)');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.moveTo(padL, padT + h);
-  samples.forEach((s, i) => { if (typeof s.elev === 'number') ctx.lineTo(x(i), y(s.elev)); });
-  ctx.lineTo(padL + w, padT + h);
-  ctx.closePath();
-  ctx.fill();
+    // Background fill (gradient under curve)
+    const grad = ctx.createLinearGradient(0, padT, 0, padT + h);
+    grad.addColorStop(0, 'rgba(26,86,219,.35)');
+    grad.addColorStop(1, 'rgba(26,86,219,.05)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT + h);
+    samples.forEach((s, i) => { if (typeof s.elev === 'number') ctx.lineTo(x(i), y(s.elev)); });
+    ctx.lineTo(padL + w, padT + h);
+    ctx.closePath();
+    ctx.fill();
 
-  // Line
-  ctx.strokeStyle = '#1a56db';
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  samples.forEach((s, i) => {
-    if (typeof s.elev !== 'number') return;
-    const xi = x(i), yi = y(s.elev);
-    if (i === 0) ctx.moveTo(xi, yi); else ctx.lineTo(xi, yi);
+    // Line
+    ctx.strokeStyle = '#1a56db';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    samples.forEach((s, i) => {
+      if (typeof s.elev !== 'number') return;
+      const xi = x(i), yi = y(s.elev);
+      if (i === 0) ctx.moveTo(xi, yi); else ctx.lineTo(xi, yi);
+    });
+    ctx.stroke();
+
+    // Peak marker
+    const peakX = x(maxIdx), peakY = y(samples[maxIdx].elev);
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(peakX, peakY, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = 'bold 12px Heebo, sans-serif';
+    ctx.fillStyle = '#dc2626';
+    ctx.textAlign = peakX > cssW / 2 ? 'right' : 'left';
+    const peakLbl = (typeof userElev === 'number')
+      ? `${Math.round(samples[maxIdx].elev)} מ׳ (${samples[maxIdx].elev - userElev >= 0 ? '+' : ''}${Math.round(samples[maxIdx].elev - userElev)})`
+      : `${Math.round(samples[maxIdx].elev)} מ׳`;
+    ctx.fillText(peakLbl, peakX + (peakX > cssW / 2 ? -8 : 8), Math.max(14, peakY - 8));
+
+    // Y-axis labels
+    ctx.fillStyle = getComputedStyle(document.body).color || '#64748b';
+    ctx.font = '11px Heebo, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${Math.round(maxE)} מ׳`, padL - 6, padT + 10);
+    ctx.fillText(`${Math.round(minE)} מ׳`, padL - 6, padT + h);
+
+    // X-axis distance labels
+    ctx.textAlign = 'center';
+    ctx.fillText('אתה', padL, padT + h + 16);
+    ctx.fillText(fmtDistance(totalDist), padL + w, padT + h + 16);
+
+    foot.textContent = `${samples.length} דגימות · SRTM 30m · אורך: ${fmtDistance(totalDist)}`;
   });
-  ctx.stroke();
-
-  // Peak marker
-  const peakX = x(maxIdx), peakY = y(samples[maxIdx].elev);
-  ctx.fillStyle = '#dc2626';
-  ctx.beginPath();
-  ctx.arc(peakX, peakY, 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.font = 'bold 10px Heebo, sans-serif';
-  ctx.fillStyle = '#dc2626';
-  ctx.textAlign = peakX > cssW / 2 ? 'right' : 'left';
-  ctx.fillText(`${Math.round(samples[maxIdx].elev)} מ׳`, peakX + (peakX > cssW / 2 ? -6 : 6), Math.max(10, peakY - 4));
-
-  // Y-axis labels (min / max)
-  ctx.fillStyle = getComputedStyle(document.body).color || '#64748b';
-  ctx.font = '9.5px Heebo, sans-serif';
-  ctx.textAlign = 'right';
-  ctx.fillText(`${Math.round(maxE)}`, padL - 3, padT + 7);
-  ctx.fillText(`${Math.round(minE)}`, padL - 3, padT + h);
-
-  // X-axis distance labels
-  ctx.textAlign = 'center';
-  ctx.fillText('אתה', padL, padT + h + 12);
-  ctx.fillText(fmtDistance(totalDist), padL + w, padT + h + 12);
-
-  foot.textContent = `${samples.length} דגימות · SRTM 30m`;
 }
 
 function hideElevationChart() {
-  document.getElementById('elevChartPanel')?.classList.remove('visible');
+  document.getElementById('elevChartModal')?.classList.remove('show');
+}
+
+function openConversionsModal() {
+  const p = state.activePoint;
+  if (!p) return;
+  const itm = proj4('EPSG:4326', 'EPSG:2039', [p.lon, p.lat]);
+  const utm = proj4('EPSG:4326', 'EPSG:32636', [p.lon, p.lat]);
+  const wgsStr = `${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`;
+  const itmStr = `${Math.round(itm[0])}, ${Math.round(itm[1])}`;
+  const utmStr = `${Math.round(utm[0])}, ${Math.round(utm[1])}`;
+  document.getElementById('conversionsModalBody').innerHTML = `
+    ${convRow('WGS84', wgsStr, 'lat, lon')}
+    ${convRow('ITM', itmStr, 'east, north')}
+    ${convRow('UTM 36N', utmStr, 'east, north')}
+  `;
+  document.getElementById('conversionsModal').classList.add('show');
 }
 
 // Build the merged "absolute elevation + delta from you" string.
@@ -2990,7 +3006,7 @@ function closeOfflineDl() {
 document.getElementById('qrScannerModal').addEventListener('click', (e) => {
   if (e.target.id === 'qrScannerModal') closeScanner();
 });
-['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal','offlineDlModal'].forEach(id => {
+['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal','offlineDlModal','conversionsModal','elevChartModal'].forEach(id => {
   const m = document.getElementById(id);
   m.addEventListener('click', (e) => { if (e.target.id === id && id !== 'authModal') closeModal(id); });
 });
