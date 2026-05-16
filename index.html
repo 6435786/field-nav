@@ -176,6 +176,9 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .map-area{flex:1;position:relative;min-height:200px;background:var(--surface2)}
 #leafletMap{position:absolute;inset:0;width:100%;height:100%;z-index:0}
 .map-pin-msg{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.85);color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;z-index:500;pointer-events:none;white-space:nowrap;display:none}
+.show-sheet-btn{position:absolute;top:10px;right:10px;background:var(--primary);color:#fff;border:none;border-radius:22px;padding:9px 16px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.35);z-index:550;display:none;align-items:center;gap:6px}
+.show-sheet-btn.visible{display:inline-flex}
+.show-sheet-btn:active{transform:scale(.96)}
 .map-pin-msg.show{display:block;animation:fadeOut 2.5s forwards}
 @keyframes fadeOut{0%,60%{opacity:1}100%{opacity:0}}
 
@@ -288,7 +291,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .qr-inline-url{font-size:10px;color:var(--text-muted);direction:ltr;word-break:break-all;text-align:center;font-family:'SF Mono',Consolas,monospace}
 
 /* ========== TOAST ========== */
-.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:12px 22px;border-radius:30px;font-size:14px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:5000;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:12px 22px;border-radius:30px;font-size:14px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.35);z-index:5000;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center;border:1px solid rgba(255,255,255,.08)}
 .toast.show{opacity:1}
 
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle}
@@ -446,6 +449,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <div class="map-area">
     <div id="leafletMap"></div>
     <div class="map-pin-msg" id="mapPinMsg">📍 נבחרה נקודה</div>
+    <button class="show-sheet-btn" id="showSheetBtn" onclick="reopenActivePointSheet()">📍 הצג פרטים</button>
 
     <!-- Bottom sheet (active point) -->
     <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
@@ -1278,7 +1282,19 @@ document.getElementById('coordInput').addEventListener('input', () => {
   parseTimer = setTimeout(async () => {
     const input = document.getElementById('coordInput').value;
     const mini = document.getElementById('detectedMini');
-    if (!input.trim()) { mini.textContent = ''; mini.className = 'detected-mini'; updateAddPointBtn(); return; }
+    if (!input.trim()) {
+      mini.textContent = ''; mini.className = 'detected-mini';
+      // Empty input = user wants to clear: drop the unsaved active point + marker + hide reopen button
+      if (state.activePoint && !state.activePoint.isSaved) {
+        if (state.unsavedMarker) { leafletMap.removeLayer(state.unsavedMarker); state.unsavedMarker = null; }
+        state.activePoint = null;
+        document.getElementById('pointSheet').classList.remove('show');
+        document.getElementById('sheetBackdrop').classList.remove('show');
+        document.getElementById('showSheetBtn')?.classList.remove('visible');
+      }
+      updateAddPointBtn();
+      return;
+    }
     const r = detectAndParse(input);
     if (r && !r.error) {
       mini.textContent = `✓ ${r.type}: ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)}`;
@@ -1346,12 +1362,20 @@ function useCurrentLocation() {
   btn.disabled = true;
   navigator.geolocation.getCurrentPosition(pos => {
     const { latitude, longitude, accuracy } = pos.coords;
+    const hadActivePoint = !!state.activePoint;
     state.livePosition = { lat: latitude, lon: longitude, accuracy };
-    document.getElementById('coordInput').value = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
     btn.innerHTML = '📍 מיקום נוכחי';
     btn.disabled = false;
-    document.getElementById('coordInput').dispatchEvent(new Event('input'));
-    refreshSheetIfActive();
+    if (hadActivePoint) {
+      // Don't replace the active point — user just wants GPS so nav-info (elevation
+      // delta + distance + azimuth) can be computed against the existing point.
+      refreshSheetIfActive();
+      toast('מיקום עודכן — מחשב הפרש גובה ואזימוט', 1800);
+    } else {
+      // No active point: populate input so the user's location becomes the active point
+      document.getElementById('coordInput').value = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      document.getElementById('coordInput').dispatchEvent(new Event('input'));
+    }
   }, err => {
     btn.innerHTML = '📍 מיקום נוכחי';
     btn.disabled = false;
@@ -1418,6 +1442,9 @@ function setActiveUnsavedPoint(lat, lon, fromMapClick = false, suggestedName = n
     }),
     zIndexOffset: 500
   }).addTo(leafletMap);
+  state.unsavedMarker.on('click', () => {
+    if (state.activePoint) showPointInSheet(state.activePoint);
+  });
   if (!fromMapClick) {
     leafletMap.setView([lat, lon], Math.max(leafletMap.getZoom(), 14));
   }
@@ -1509,13 +1536,22 @@ function showPointInSheet(point) {
   state.activePoint = point;
   document.getElementById('pointSheet').classList.add('show');
   document.getElementById('sheetBackdrop').classList.add('show');
+  document.getElementById('showSheetBtn')?.classList.remove('visible');
   renderSheet();
 }
 
 function closeSheet() {
   document.getElementById('pointSheet').classList.remove('show');
   document.getElementById('sheetBackdrop').classList.remove('show');
-  state.activePoint = null;
+  // Preserve the active point so the user can reopen via the marker or the
+  // floating "show details" button — they didn't intend to discard the point.
+  if (state.activePoint) {
+    document.getElementById('showSheetBtn')?.classList.add('visible');
+  }
+}
+
+function reopenActivePointSheet() {
+  if (state.activePoint) showPointInSheet(state.activePoint);
 }
 
 function refreshSheetIfActive() {
