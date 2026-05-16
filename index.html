@@ -1690,6 +1690,35 @@ function updateNavInfoDynamics() {
   distAzEl.innerHTML = `<b>${fmtDistance(d)}</b> · ${Math.round(bear)}° <span class="muted">(${bearingToCardinal(bear)})</span>`;
 }
 
+// Fetch elevations for one or more points using OpenTopoData SRTM 30m (3x finer
+// than Open-Meteo's Copernicus 90m — catches most cliffs and ridges that the
+// coarser data smooths away). Up to 100 points per request; we batch if more.
+// Returns array of elevations aligned to input order, or null on failure.
+async function fetchElevations(points, abortSignal) {
+  if (!points || !points.length) return [];
+  const all = [];
+  for (let i = 0; i < points.length; i += 100) {
+    const batch = points.slice(i, i + 100);
+    const locStr = batch.map(p => `${p.lat},${p.lon}`).join('|');
+    try {
+      const res = await fetch(
+        `https://api.opentopodata.org/v1/srtm30m?locations=${encodeURIComponent(locStr)}`,
+        { signal: abortSignal }
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.results) return null;
+      for (const r of data.results) {
+        all.push(typeof r.elevation === 'number' ? r.elevation : null);
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') throw e;
+      return null;
+    }
+  }
+  return all;
+}
+
 let navInfoAbort = null;
 async function loadNavInfo(lat, lon) {
   const elevEl = document.getElementById('navElev');
@@ -1716,13 +1745,11 @@ async function loadNavInfo(lat, lon) {
   if (navInfoAbort) navInfoAbort.abort();
   navInfoAbort = new AbortController();
   try {
-    const url = hasUser
-      ? `https://api.open-meteo.com/v1/elevation?latitude=${lat},${userPos.lat}&longitude=${lon},${userPos.lon}`
-      : `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`;
-    const res = await fetch(url, { signal: navInfoAbort.signal });
-    if (!res.ok) throw 0;
-    const data = await res.json();
-    const arr = data.elevation || [];
+    const points = hasUser
+      ? [{ lat, lon }, { lat: userPos.lat, lon: userPos.lon }]
+      : [{ lat, lon }];
+    const arr = await fetchElevations(points, navInfoAbort.signal);
+    if (!arr) throw 0;
     const pointElev = arr[0];
     const userElev = hasUser ? arr[1] : null;
 
