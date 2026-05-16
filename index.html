@@ -1723,6 +1723,11 @@ function updateNavInfoDynamics() {
 // than Open-Meteo's Copernicus 90m — catches most cliffs and ridges that the
 // coarser data smooths away). Up to 100 points per request; we batch if more.
 // Returns array of elevations aligned to input order, or null on failure.
+// SRTM 30m via OpenTopoData. OpenTopoData doesn't send CORS headers, so we route
+// through our own Cloudflare Worker which wraps it with the proper headers.
+// Up to 100 points per request — we batch if more.
+const ELEVATION_ENDPOINT = 'https://delicate-math-4110.6435786.workers.dev/elevation';
+
 async function fetchElevations(points, abortSignal) {
   if (!points || !points.length) return [];
   const all = [];
@@ -1731,7 +1736,7 @@ async function fetchElevations(points, abortSignal) {
     const locStr = batch.map(p => `${p.lat},${p.lon}`).join('|');
     try {
       const res = await fetch(
-        `https://api.opentopodata.org/v1/srtm30m?locations=${encodeURIComponent(locStr)}`,
+        `${ELEVATION_ENDPOINT}?locations=${encodeURIComponent(locStr)}`,
         { signal: abortSignal }
       );
       if (!res.ok) return null;
