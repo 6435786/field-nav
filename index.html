@@ -1665,12 +1665,24 @@ function openAsLocation() {
   }
 }
 
+function buildShareableNavUrl(p) {
+  // Self-hosted URL: receiver lands inside field-nav with this point preloaded,
+  // and from there can hit "פתח באפליקציית מפה" to get the OS app-chooser
+  // (Waze / Google Maps / OFF ROAD / etc), just like a WhatsApp location share.
+  const base = location.origin + location.pathname;
+  const params = new URLSearchParams();
+  params.set('q', `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`);
+  if (p.name && p.name !== 'נקודה לא שמורה') params.set('name', p.name);
+  return `${base}?${params.toString()}`;
+}
+
 async function shareLink() {
   const p = state.activePoint;
   if (!p) return;
-  const url = `https://www.google.com/maps?q=${p.lat},${p.lon}`;
+  const url = buildShareableNavUrl(p);
+  const text = p.name && p.name !== 'נקודה לא שמורה' ? `📍 ${p.name}` : '📍 מיקום';
   if (navigator.share) {
-    try { await navigator.share({ title: p.name || 'מיקום', url }); return; }
+    try { await navigator.share({ title: p.name || 'מיקום', text, url }); return; }
     catch (e) { if (e.name === 'AbortError') return; }
   }
   try { await navigator.clipboard.writeText(url); toast('הקישור הועתק ✓'); }
@@ -2624,11 +2636,48 @@ document.getElementById('qrScannerModal').addEventListener('click', (e) => {
 
 window.addEventListener('load', () => {
   initMap();
+  // If page was opened with ?q=lat,lon (or ?lat=&lon=), preload the coord and open the sheet
+  handleIncomingLocationParams();
   // If Firebase didn't init or no user yet, show auth modal after a brief moment
   setTimeout(() => {
-    if (!state.user && !state.authSkipped) showAuthModal();
+    if (!state.user && !state.authSkipped && !location.search.includes('q=')) showAuthModal();
   }, 800);
 });
+
+// When someone opens a field-nav share link, parse coords from the URL,
+// fill the input, drop the pin, and surface the bottom sheet automatically.
+function handleIncomingLocationParams() {
+  const params = new URLSearchParams(location.search);
+  let lat = null, lon = null, name = null;
+  const q = params.get('q');
+  if (q) {
+    const parts = q.split(/[,\s]+/).map(parseFloat);
+    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) { lat = parts[0]; lon = parts[1]; }
+  }
+  if ((lat === null || lon === null) && params.get('lat') && params.get('lon')) {
+    lat = parseFloat(params.get('lat'));
+    lon = parseFloat(params.get('lon'));
+  }
+  if (lat === null || lon === null || isNaN(lat) || isNaN(lon)) return;
+  name = params.get('name') || params.get('label') || null;
+
+  document.getElementById('coordInput').value = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+  // Wait briefly for map + state to settle before triggering parse
+  setTimeout(() => {
+    document.getElementById('coordInput').dispatchEvent(new Event('input'));
+    if (name) {
+      // After parse fires, override the active point's name
+      setTimeout(() => {
+        if (state.activePoint && !state.activePoint.isSaved) {
+          state.activePoint.name = name;
+          if (typeof renderSheet === 'function') renderSheet();
+        }
+      }, 400);
+    }
+    // Clean URL so refresh doesn't keep reopening the share
+    if (history.replaceState) history.replaceState(null, '', location.pathname);
+  }, 400);
+}
 
 // ========== PWA: SERVICE WORKER + INSTALL PROMPT ==========
 let deferredInstallPrompt = null;
