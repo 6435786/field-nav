@@ -1250,9 +1250,10 @@ function detectAndParse(input) {
 
 // Live parse feedback
 let parseTimer;
+let lastExpandedUrl = null;
 document.getElementById('coordInput').addEventListener('input', () => {
   clearTimeout(parseTimer);
-  parseTimer = setTimeout(() => {
+  parseTimer = setTimeout(async () => {
     const input = document.getElementById('coordInput').value;
     const mini = document.getElementById('detectedMini');
     if (!input.trim()) { mini.textContent = ''; mini.className = 'detected-mini'; updateAddPointBtn(); return; }
@@ -1260,9 +1261,37 @@ document.getElementById('coordInput').addEventListener('input', () => {
     if (r && !r.error) {
       mini.textContent = `✓ ${r.type}: ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)}`;
       mini.className = 'detected-mini';
-      // Set as active unsaved point and show on map
       setActiveUnsavedPoint(r.latLon[0], r.latLon[1]);
-    } else if (r && r.error) {
+      updateAddPointBtn();
+      return;
+    }
+    // If parse failed AND input looks like a URL, auto-attempt redirect expansion
+    // (handles maps.app.goo.gl, goo.gl/maps, me-qr.com, etc.)
+    const isUrl = /^https?:\/\//i.test(input.trim());
+    if (isUrl && input.trim() !== lastExpandedUrl) {
+      mini.textContent = '⏳ מנסה להרחיב קישור מקוצר...';
+      mini.className = 'detected-mini';
+      lastExpandedUrl = input.trim();
+      try {
+        const coords = await tryExpandUrl(input.trim());
+        // Only apply if the input is still the same URL (user might have edited meanwhile)
+        if (document.getElementById('coordInput').value === input && coords) {
+          const lat = parseFloat(coords[0]), lon = parseFloat(coords[1]);
+          mini.textContent = `✓ מקישור מקוצר: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+          mini.className = 'detected-mini';
+          setActiveUnsavedPoint(lat, lon);
+          updateAddPointBtn();
+          return;
+        }
+      } catch (e) { /* fall through to error */ }
+      if (document.getElementById('coordInput').value === input) {
+        mini.textContent = '⚠️ לא הצלחתי להרחיב את הקישור. פתח אותו בדפדפן והעתק את הכתובת המלאה.';
+        mini.className = 'detected-mini error';
+        updateAddPointBtn();
+      }
+      return;
+    }
+    if (r && r.error) {
       mini.textContent = '⚠️ ' + r.error;
       mini.className = 'detected-mini error';
     } else {
