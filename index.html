@@ -102,16 +102,58 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 /* ========== APP SHELL ========== */
 .app{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:1100px;margin:0 auto;background:var(--bg);position:relative;width:100%}
 
-/* On wide screens, content blocks shouldn't stretch awkwardly across the full width */
+/* On tablet+ screens, content blocks shouldn't stretch awkwardly across the full width */
 @media (min-width:700px){
   .quick-input,.project-bar,.auth-banner{padding-left:max(14px,calc((100% - 720px)/2));padding-right:max(14px,calc((100% - 720px)/2))}
   .app-header h1{font-size:18px}
-  /* Frame: turn the app into a floating card with a subtle border + shadow,
-     so it stops bleeding into the screen edges on tablet/desktop. */
+  /* Frame: turn the app into a floating card with a subtle border + shadow */
   body{background:linear-gradient(180deg,#dbe5f1 0%,#cdd9e8 100%);padding:20px 0}
   [data-theme="dark"] body{background:linear-gradient(180deg,#020617 0%,#0f172a 100%)}
   .app{height:calc(100vh - 40px);height:calc(100dvh - 40px);border-radius:18px;overflow:hidden;box-shadow:0 20px 60px rgba(15,23,42,.18),0 4px 12px rgba(15,23,42,.08);border:1px solid var(--border)}
   [data-theme="dark"] .app{box-shadow:0 20px 60px rgba(0,0,0,.5),0 4px 12px rgba(0,0,0,.3);border-color:var(--border-strong)}
+}
+
+/* Desktop / large tablet: two-column layout — controls on the right (RTL),
+   map on the left. The bottom sheet stops being a sheet and becomes a static
+   right-column panel; modals stay as centred dialogs but feel more like
+   floating windows than blocking overlays. */
+@media (min-width:900px){
+  .app{
+    display:grid;
+    grid-template-columns:1fr 420px;
+    grid-template-rows:auto auto auto auto auto 1fr;
+    /* rows: header / auth-banner / install-banner / project-bar / quick-input / map+sheet */
+    padding:0;
+  }
+  .app-header{grid-column:1 / -1}
+  .auth-banner{grid-column:1 / -1}
+  .install-banner{grid-column:1 / -1}
+  .project-bar{grid-column:2;grid-row:4;border-bottom:1px solid var(--border)}
+  .quick-input{grid-column:2;grid-row:5;border-bottom:1px solid var(--border)}
+  .map-area{grid-column:1;grid-row:4 / -1;border-left:1px solid var(--border)}
+  /* The bottom sheet becomes a static side panel that's always visible */
+  .sheet{position:static!important;grid-column:2;grid-row:6;transform:none!important;max-height:none;height:100%;border-radius:0;box-shadow:none;border-top:1px solid var(--border);background:var(--surface)}
+  .sheet.show{transform:none!important}
+  .sheet-backdrop{display:none!important}
+  .sheet-handle{display:none}
+  .sheet-close{display:none}
+  .show-sheet-btn{display:none!important}
+  /* On wide, content blocks should not self-constrain — they already live in a narrow column */
+  .quick-input,.project-bar,.auth-banner,.install-banner{padding-left:14px;padding-right:14px}
+  /* Modals get the floating-window feel: lighter backdrop, more refined sizing */
+  .modal{background:rgba(0,0,0,.35)}
+  .modal-content{max-width:480px;box-shadow:0 30px 80px rgba(0,0,0,.25),0 8px 20px rgba(0,0,0,.15)}
+  [data-theme="dark"] .modal-content{box-shadow:0 30px 80px rgba(0,0,0,.7),0 8px 20px rgba(0,0,0,.4)}
+  /* On desktop the sheet is always present in layout (not hidden via transform).
+     When no active point, JS leaves the body empty — we add a CSS-only hint. */
+  .sheet,.sheet:not(.show){display:flex;visibility:visible;opacity:1}
+  .sheet-body:empty::before{
+    content:"👈 לחץ על המפה, הזן קואורדינטות, או סרוק QR כדי להתחיל";
+    display:flex;align-items:center;justify-content:center;height:100%;text-align:center;
+    color:var(--text-muted);font-size:14px;font-weight:500;padding:30px;line-height:1.6;
+  }
+  /* Header h1 slightly larger on desktop */
+  .app-header h1{font-size:20px}
 }
 
 /* Header */
@@ -503,20 +545,20 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
       <span>📌 מיקום ידני פעיל</span>
       <button onclick="clearManualLocation()">איפוס ל-GPS</button>
     </div>
+  </div>
 
-    <!-- Bottom sheet (active point) -->
-    <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
-    <div class="sheet" id="pointSheet">
-      <div class="sheet-handle"></div>
-      <div class="sheet-header">
-        <div class="sheet-title">
-          <div class="sheet-name" id="sheetName"></div>
-          <div class="sheet-coords" id="sheetCoords"></div>
-        </div>
-        <button class="sheet-close" onclick="closeSheet()" aria-label="סגור">×</button>
+  <!-- Bottom sheet (mobile) / right-panel content (desktop) -->
+  <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
+  <div class="sheet" id="pointSheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div class="sheet-title">
+        <div class="sheet-name" id="sheetName"></div>
+        <div class="sheet-coords" id="sheetCoords"></div>
       </div>
-      <div class="sheet-body" id="sheetBody"></div>
+      <button class="sheet-close" onclick="closeSheet()" aria-label="סגור">×</button>
     </div>
+    <div class="sheet-body" id="sheetBody"></div>
   </div>
 </div>
 
@@ -1386,6 +1428,7 @@ document.getElementById('coordInput').addEventListener('input', () => {
         document.getElementById('pointSheet').classList.remove('show');
         document.getElementById('sheetBackdrop').classList.remove('show');
         document.getElementById('showSheetBtn')?.classList.remove('visible');
+        document.getElementById('sheetBody').innerHTML = ''; // clears desktop side panel + lets empty-state hint show
       }
       updateAddPointBtn();
       return;
