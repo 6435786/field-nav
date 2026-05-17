@@ -309,6 +309,23 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .leaflet-control-tracking:hover{background:var(--surface2)}
 .leaflet-control-tracking.active:hover{background:var(--primary-dark)}
 
+/* Recording control (red dot → black square) + Export control (share arrow) */
+.leaflet-control-record,.leaflet-control-export{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;margin-bottom:6px!important}
+.leaflet-control-record:hover,.leaflet-control-export:hover{background:var(--surface2)}
+.leaflet-control-record .rec-dot-icon{width:18px;height:18px;background:#dc2626;border-radius:50%;transition:all .2s}
+.leaflet-control-record.recording .rec-dot-icon{width:14px;height:14px;border-radius:3px;background:#1f2937}
+.leaflet-control-export{color:var(--primary);display:none}
+.leaflet-control-export.visible{display:flex}
+.leaflet-control-export svg{display:block}
+
+/* Recording banner — pulsing red, top of map */
+.recording-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;padding:8px 16px;border-radius:22px;font-size:13px;font-weight:600;z-index:560;box-shadow:0 4px 12px rgba(0,0,0,.3);display:none;align-items:center;gap:10px;max-width:90vw;font-variant-numeric:tabular-nums}
+.recording-banner.show{display:flex}
+.recording-banner .rec-dot{width:10px;height:10px;background:#fff;border-radius:50%;animation:recpulse 1.2s ease-in-out infinite;flex-shrink:0}
+.recording-banner .rec-line-toggle{background:rgba(255,255,255,.25);border:none;color:#fff;width:24px;height:24px;border-radius:50%;font-family:inherit;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.recording-banner .rec-line-toggle:hover{background:rgba(255,255,255,.4)}
+@keyframes recpulse{0%,100%{opacity:1}50%{opacity:.3}}
+
 /* ========== BOTTOM SHEET (point detail) ========== */
 .sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .25s;z-index:600;pointer-events:none}
 .sheet-backdrop.show{background:rgba(0,0,0,.18);pointer-events:auto}
@@ -567,6 +584,11 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <div class="measure-banner" id="measureBanner">
       <span id="measureBannerText">בחר נקודה ראשונה</span>
       <button class="measure-close-x" onclick="exitMeasureMode()" title="סיום מדידה" aria-label="סיום">✕</button>
+    </div>
+    <div class="recording-banner" id="recordingBanner">
+      <span class="rec-dot"></span>
+      <span id="recordingStats">מקליט · 00:00 · 0.00 ק"מ · 0 נק׳</span>
+      <button class="rec-line-toggle" onclick="toggleRecordingLine()" title="הסתר/הצג קו" aria-label="הסתר/הצג קו">👁</button>
     </div>
   </div>
 
@@ -843,6 +865,8 @@ const state = {
   measureMarkerA: null,
   measureMarkerB: null,
   manualPicking: false,          // banner-based "pick a manual location" mode
+  recording: null,               // active recording: {active, startTime, points, watchId, wakeLock, livePolyline, timer, totalDist}
+  recordings: [],                // completed recordings this session (with localStorage backup)
 };
 
 // ========== UTILS ==========
@@ -1539,6 +1563,268 @@ document.getElementById('coordInput').addEventListener('keydown', (e) => {
 });
 
 // ========== CURRENT LOCATION ==========
+// ========== TRACK RECORDING ==========
+// Records the user's GPS movement to an in-memory point array, with a live
+// polyline on the map and a backup to localStorage every ~10 points.
+// On stop: file becomes shareable via the OS share sheet (navigator.share
+// with files) — no link, the actual GPX is attached.
+// Gated to signed-in users only.
+
+let recordingLineHidden = false;
+
+async function toggleRecording() {
+  // Anonymous block: per the auth-tier plan, you need to be signed in to record
+  if (!state.user) {
+    toast('התחבר עם גוגל כדי להקליט', 3000);
+    if (typeof showAuthModal === 'function' && !state.authSkipped) showAuthModal();
+    return;
+  }
+  if (state.recording && state.recording.active) {
+    await stopRecording();
+  } else {
+    const last = state.recordings && state.recordings[state.recordings.length - 1];
+    if (last && !last.exported) {
+      if (!confirm('ההקלטה הקודמת עוד לא יוצאה. להתחיל הקלטה חדשה ולאבד את הקודמת מהזיכרון?')) return;
+      // Discard the previous one
+      state.recordings.pop();
+      document.getElementById('exportControl')?.classList.remove('visible');
+    }
+    await startRecording();
+  }
+}
+
+async function startRecording() {
+  if (!navigator.geolocation) { toast('GPS לא נתמך'); return; }
+
+  state.recording = {
+    active: true,
+    startTime: Date.now(),
+    points: [],
+    totalDist: 0,
+    watchId: null,
+    wakeLock: null,
+    livePolyline: null,
+    timer: null,
+  };
+
+  // Wake Lock — keeps the screen on so watchPosition isn't throttled when the
+  // user pockets the phone. The single most important piece for usability here.
+  if ('wakeLock' in navigator) {
+    try { state.recording.wakeLock = await navigator.wakeLock.request('screen'); }
+    catch (e) { /* user can still record, just screen will sleep */ }
+  }
+
+  // Reacquire wake lock if it auto-releases (e.g., tab visibility flip)
+  document.addEventListener('visibilitychange', reacquireWakeLockIfRecording);
+
+  state.recording.watchId = navigator.geolocation.watchPosition(
+    pos => recordingTick(pos),
+    err => {
+      const msgs = { 1: 'נדחתה הרשאה', 2: 'לא זמין', 3: 'תם הזמן' };
+      toast('GPS: ' + (msgs[err.code] || err.message), 4000);
+    },
+    { enableHighAccuracy: true, timeout: 25000, maximumAge: 1000 }
+  );
+
+  document.getElementById('recordControl').classList.add('recording');
+  document.getElementById('recordControl').title = 'עצור הקלטה';
+  document.getElementById('recordingBanner').classList.add('show');
+  document.getElementById('exportControl').classList.remove('visible');
+  updateRecordingStats();
+  state.recording.timer = setInterval(updateRecordingStats, 1000);
+  toast('🔴 הקלטה התחילה — אל תכבה את המסך', 3500);
+}
+
+async function reacquireWakeLockIfRecording() {
+  const rec = state.recording;
+  if (rec && rec.active && document.visibilityState === 'visible' && 'wakeLock' in navigator) {
+    try { rec.wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  }
+}
+
+function recordingTick(pos) {
+  const rec = state.recording;
+  if (!rec || !rec.active) return;
+  const { latitude, longitude, altitude } = pos.coords;
+  const newPoint = { lat: latitude, lon: longitude, elev: typeof altitude === 'number' ? altitude : null, time: Date.now() };
+
+  // Drop points within 2m of the previous — avoids GPS jitter blowing up the file
+  if (rec.points.length) {
+    const last = rec.points[rec.points.length - 1];
+    const d = distanceM(last.lat, last.lon, latitude, longitude);
+    if (d < 2) return;
+    rec.totalDist += d;
+  }
+  rec.points.push(newPoint);
+
+  if (!rec.livePolyline && !recordingLineHidden) {
+    rec.livePolyline = L.polyline([], { color: '#1a56db', weight: 4, opacity: 0.85 }).addTo(leafletMap);
+  }
+  if (rec.livePolyline) rec.livePolyline.addLatLng([latitude, longitude]);
+
+  if (rec.points.length % 3 === 0) updateRecordingStats();
+  if (rec.points.length % 10 === 0) backupRecordingsToLocalStorage();
+}
+
+function updateRecordingStats() {
+  const rec = state.recording;
+  if (!rec) return;
+  const el = document.getElementById('recordingStats');
+  if (!el) return;
+  el.textContent = `מקליט · ${formatDuration(Date.now() - rec.startTime)} · ${fmtDistance(rec.totalDist)} · ${rec.points.length} נק׳`;
+}
+
+function formatDuration(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+function toggleRecordingLine() {
+  recordingLineHidden = !recordingLineHidden;
+  const rec = state.recording;
+  if (!rec) return;
+  if (recordingLineHidden && rec.livePolyline) {
+    leafletMap.removeLayer(rec.livePolyline);
+  } else if (!recordingLineHidden && rec.livePolyline) {
+    rec.livePolyline.addTo(leafletMap);
+  } else if (!recordingLineHidden && !rec.livePolyline && rec.points.length) {
+    rec.livePolyline = L.polyline(rec.points.map(p => [p.lat, p.lon]), { color: '#1a56db', weight: 4, opacity: 0.85 }).addTo(leafletMap);
+  }
+  const btn = document.querySelector('.rec-line-toggle');
+  if (btn) btn.textContent = recordingLineHidden ? '🙈' : '👁';
+}
+
+async function stopRecording() {
+  const rec = state.recording;
+  if (!rec) return;
+
+  if (rec.watchId !== null) navigator.geolocation.clearWatch(rec.watchId);
+  if (rec.timer) clearInterval(rec.timer);
+  if (rec.wakeLock) { try { await rec.wakeLock.release(); } catch (e) {} }
+  document.removeEventListener('visibilitychange', reacquireWakeLockIfRecording);
+
+  rec.active = false;
+  rec.endTime = Date.now();
+
+  // Push to completed list (live polyline is detached and not stored — we keep coords only)
+  const completed = {
+    startTime: rec.startTime,
+    endTime: rec.endTime,
+    totalDist: rec.totalDist,
+    points: rec.points.slice(),
+    exported: false,
+  };
+  if (!state.recordings) state.recordings = [];
+  state.recordings.push(completed);
+
+  // Detach the live polyline from the map (the user can re-show via export/share workflow)
+  if (rec.livePolyline) { try { leafletMap.removeLayer(rec.livePolyline); } catch (e) {} }
+  state.recording = null;
+
+  document.getElementById('recordControl').classList.remove('recording');
+  document.getElementById('recordControl').title = 'התחל הקלטת מסלול';
+  document.getElementById('recordingBanner').classList.remove('show');
+  document.getElementById('exportControl').classList.add('visible');
+
+  backupRecordingsToLocalStorage();
+  toast(`✓ הסתיים: ${completed.points.length} נק׳, ${fmtDistance(completed.totalDist)} — לחץ ⤴ לייצוא`, 4500);
+}
+
+function backupRecordingsToLocalStorage() {
+  try {
+    const snapshot = (state.recordings || []).map(r => ({
+      startTime: r.startTime, endTime: r.endTime, totalDist: r.totalDist,
+      points: r.points, exported: !!r.exported,
+    }));
+    // Cap to last 5 to keep storage reasonable
+    const trimmed = snapshot.slice(-5);
+    localStorage.setItem('fieldnav.recordings', JSON.stringify(trimmed));
+  } catch (e) { /* quota or serialisation failure — non-fatal */ }
+}
+
+function restoreRecordingsFromBackup() {
+  try {
+    const raw = localStorage.getItem('fieldnav.recordings');
+    if (!raw) return;
+    const recs = JSON.parse(raw);
+    if (Array.isArray(recs) && recs.length) {
+      state.recordings = recs;
+      if (recs.some(r => !r.exported)) {
+        document.getElementById('exportControl')?.classList.add('visible');
+      }
+    }
+  } catch (e) {}
+}
+
+function getRecordingName(rec) {
+  const user = state.user;
+  const rawName = user ? (user.displayName || user.email || 'משתמש') : 'משתמש';
+  const username = rawName.split(/[\s@]/)[0].replace(/[^\w֐-׿\-]/g, '_') || 'משתמש';
+  const d = new Date(rec.startTime);
+  const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const timeStr = `${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
+  return `${username}_${dateStr}_${timeStr}`;
+}
+
+function buildGpxFromRecording(rec) {
+  const esc = s => (s == null ? '' : String(s)).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&apos;','"':'&quot;'}[c]));
+  const trkpts = rec.points.map(p => {
+    const eleTag = (typeof p.elev === 'number') ? `<ele>${p.elev.toFixed(1)}</ele>` : '';
+    return `      <trkpt lat="${p.lat}" lon="${p.lon}">${eleTag}<time>${new Date(p.time).toISOString()}</time></trkpt>`;
+  }).join('\n');
+  const name = getRecordingName(rec);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="ניווט רחפנים" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>${esc(name)}</name>
+    <time>${new Date(rec.startTime).toISOString()}</time>
+  </metadata>
+  <trk>
+    <name>${esc(name)}</name>
+    <trkseg>
+${trkpts}
+    </trkseg>
+  </trk>
+</gpx>`;
+}
+
+async function exportLastRecording() {
+  const rec = state.recordings && state.recordings[state.recordings.length - 1];
+  if (!rec || !rec.points || !rec.points.length) {
+    toast('אין הקלטה לייצוא');
+    document.getElementById('exportControl')?.classList.remove('visible');
+    return;
+  }
+  const gpxString = buildGpxFromRecording(rec);
+  const filename = `${getRecordingName(rec)}.gpx`;
+  const file = new File([gpxString], filename, { type: 'application/gpx+xml' });
+
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: 'מסלול ניווט רחפנים',
+        text: `מסלול: ${rec.points.length} נק׳, ${fmtDistance(rec.totalDist)}, ${formatDuration(rec.endTime - rec.startTime)}`
+      });
+      rec.exported = true;
+      backupRecordingsToLocalStorage();
+      toast('שותף ✓');
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  // Fallback: trigger a normal browser download
+  downloadFile(gpxString, filename, 'application/gpx+xml');
+  rec.exported = true;
+  backupRecordingsToLocalStorage();
+  toast('הורד ✓');
+}
+
 // ========== MANUAL LOCATION (no GPS) ==========
 let pendingManualCoords = null;
 
@@ -1828,6 +2114,34 @@ function initMap() {
     return div;
   };
   trackControl.addTo(leafletMap);
+
+  // Recording control (red dot → black square)
+  const recordControl = L.control({ position: 'bottomleft' });
+  recordControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'leaflet-control-record');
+    div.id = 'recordControl';
+    div.innerHTML = '<div class="rec-dot-icon"></div>';
+    div.title = 'התחל הקלטת מסלול';
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.on(div, 'click', toggleRecording);
+    return div;
+  };
+  recordControl.addTo(leafletMap);
+
+  // Export control (share arrow) — hidden until there's a recording to export
+  const exportControl = L.control({ position: 'bottomleft' });
+  exportControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'leaflet-control-export');
+    div.id = 'exportControl';
+    div.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"/><path d="M7 8l5-5 5 5"/><path d="M5 14v5a2 2 0 002 2h10a2 2 0 002-2v-5"/></svg>';
+    div.title = 'ייצוא וצריפה של ההקלטה האחרונה';
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.on(div, 'click', exportLastRecording);
+    return div;
+  };
+  exportControl.addTo(leafletMap);
+  // Surface the export control if we restored an unexported recording from a previous session
+  setTimeout(restoreRecordingsFromBackup, 500);
 
   leafletMap.on('click', (e) => {
     if (state.pickingManualLocation) { handleManualLocationMapPick(e); return; }
