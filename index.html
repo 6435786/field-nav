@@ -106,6 +106,12 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 @media (min-width:700px){
   .quick-input,.project-bar,.auth-banner{padding-left:max(14px,calc((100% - 720px)/2));padding-right:max(14px,calc((100% - 720px)/2))}
   .app-header h1{font-size:18px}
+  /* Frame: turn the app into a floating card with a subtle border + shadow,
+     so it stops bleeding into the screen edges on tablet/desktop. */
+  body{background:linear-gradient(180deg,#dbe5f1 0%,#cdd9e8 100%);padding:20px 0}
+  [data-theme="dark"] body{background:linear-gradient(180deg,#020617 0%,#0f172a 100%)}
+  .app{height:calc(100vh - 40px);height:calc(100dvh - 40px);border-radius:18px;overflow:hidden;box-shadow:0 20px 60px rgba(15,23,42,.18),0 4px 12px rgba(15,23,42,.08);border:1px solid var(--border)}
+  [data-theme="dark"] .app{box-shadow:0 20px 60px rgba(0,0,0,.5),0 4px 12px rgba(0,0,0,.3);border-color:var(--border-strong)}
 }
 
 /* Header */
