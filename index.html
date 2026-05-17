@@ -506,7 +506,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <div class="modal-content">
     <button class="modal-close" onclick="closeOfflineDl()">×</button>
     <h3>💾 הורדת מפות לאופליין</h3>
-    <div class="modal-info" id="offlineDlInfo">סמן אזור על המפה: לחץ פינה אחת ואז את הפינה הנגדית.</div>
+    <div class="modal-info" id="offlineDlInfo">סמן אזור על המפה: לחץ פינה אחת ואז את הפינה הנגדית. נתוני גובה (~50 מ׳) יורדו אוטומטית יחד עם האריחים.</div>
 
     <div id="offlineDlConfig" style="display:none">
       <label style="margin-top:6px">שכבות להורדה</label>
@@ -2165,23 +2165,88 @@ function updateNavInfoDynamics() {
 // Up to 100 points per request — we batch if more.
 const ELEVATION_ENDPOINT = 'https://delicate-math-4110.6435786.workers.dev/elevation';
 
+// ===== Offline elevation cache (IndexedDB) =====
+// Every elevation we fetch is cached locally by a grid-aligned key (~50m step).
+// On lookup we check the cache first and only hit the network for misses. The
+// offline-area downloader pre-fills this cache for an entire bounding box so
+// rescue/drone work in that area continues to work without connectivity.
+const ELEV_GRID_DEG = 0.00045; // ~50m at Israel's latitude
+const ELEV_DB_NAME = 'fieldnav-elev';
+const ELEV_STORE = 'cells';
+let _elevDbPromise = null;
+function openElevDB() {
+  if (_elevDbPromise) return _elevDbPromise;
+  _elevDbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(ELEV_DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(ELEV_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  }).catch(() => null);
+  return _elevDbPromise;
+}
+function elevCellKey(lat, lon) {
+  const rLat = Math.round(lat / ELEV_GRID_DEG) * ELEV_GRID_DEG;
+  const rLon = Math.round(lon / ELEV_GRID_DEG) * ELEV_GRID_DEG;
+  return rLat.toFixed(6) + '_' + rLon.toFixed(6);
+}
+async function getCachedElevations(points) {
+  const db = await openElevDB();
+  if (!db) return points.map(() => null);
+  return new Promise(resolve => {
+    const out = new Array(points.length);
+    let pending = points.length;
+    if (!pending) return resolve(out);
+    const tx = db.transaction(ELEV_STORE, 'readonly');
+    const store = tx.objectStore(ELEV_STORE);
+    points.forEach((p, i) => {
+      const req = store.get(elevCellKey(p.lat, p.lon));
+      req.onsuccess = () => { out[i] = (typeof req.result === 'number') ? req.result : null; if (--pending === 0) resolve(out); };
+      req.onerror = () => { out[i] = null; if (--pending === 0) resolve(out); };
+    });
+  });
+}
+async function putCachedElevations(records) {
+  const db = await openElevDB();
+  if (!db || !records.length) return;
+  return new Promise(resolve => {
+    const tx = db.transaction(ELEV_STORE, 'readwrite');
+    const store = tx.objectStore(ELEV_STORE);
+    for (const r of records) {
+      if (typeof r.elev === 'number') store.put(r.elev, elevCellKey(r.lat, r.lon));
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+
 async function fetchElevations(points, abortSignal) {
   if (!points || !points.length) return [];
-  const all = [];
-  for (let i = 0; i < points.length; i += 100) {
-    const batch = points.slice(i, i + 100);
-    const locStr = batch.map(p => `${p.lat},${p.lon}`).join('|');
+  // 1) Try cache first
+  const cached = await getCachedElevations(points);
+  const all = cached.slice();
+  // 2) Collect indices that missed the cache
+  const missing = [];
+  for (let i = 0; i < points.length; i++) {
+    if (all[i] === null || all[i] === undefined) missing.push(i);
+  }
+  if (!missing.length) return all;
+  // 3) Fetch missing through the Worker, in batches of 100, and write through to cache
+  for (let i = 0; i < missing.length; i += 100) {
+    const idxBatch = missing.slice(i, i + 100);
+    const batchPoints = idxBatch.map(idx => points[idx]);
+    const locStr = batchPoints.map(p => `${p.lat},${p.lon}`).join('|');
     try {
-      const res = await fetch(
-        `${ELEVATION_ENDPOINT}?locations=${encodeURIComponent(locStr)}`,
-        { signal: abortSignal }
-      );
+      const res = await fetch(`${ELEVATION_ENDPOINT}?locations=${encodeURIComponent(locStr)}`, { signal: abortSignal });
       if (!res.ok) return null;
       const data = await res.json();
       if (!data.results) return null;
-      for (const r of data.results) {
-        all.push(typeof r.elevation === 'number' ? r.elevation : null);
+      const toCache = [];
+      for (let j = 0; j < data.results.length; j++) {
+        const elev = typeof data.results[j].elevation === 'number' ? data.results[j].elevation : null;
+        all[idxBatch[j]] = elev;
+        if (elev !== null) toCache.push({ lat: batchPoints[j].lat, lon: batchPoints[j].lon, elev });
       }
+      putCachedElevations(toCache); // fire-and-forget
     } catch (e) {
       if (e.name === 'AbortError') throw e;
       return null;
@@ -3425,9 +3490,60 @@ async function startOfflineDownload() {
 
   if (offlineDownloadAbort.signal.aborted) {
     toast('הורדה בוטלה', 2500);
+    offlineDownloadAbort = null;
+    return;
+  }
+
+  // Now download the elevation grid for the same area (~50m resolution, batched
+  // 100 points per request through the Worker, written into IndexedDB).
+  text.textContent = `אריחים: ${done.toLocaleString()} ✓ · מתחיל גובה...`;
+  fill.style.width = '0%';
+  const gridPoints = [];
+  const stepLat = ELEV_GRID_DEG;
+  const stepLon = ELEV_GRID_DEG / Math.cos((bounds.getNorth() + bounds.getSouth()) / 2 * Math.PI / 180);
+  for (let lat = bounds.getSouth(); lat <= bounds.getNorth(); lat += stepLat) {
+    for (let lon = bounds.getWest(); lon <= bounds.getEast(); lon += stepLon) {
+      gridPoints.push({ lat, lon });
+    }
+  }
+  const elevTotal = gridPoints.length;
+  let elevDone = 0, elevFailed = 0;
+  for (let i = 0; i < gridPoints.length; i += 100) {
+    if (offlineDownloadAbort.signal.aborted) break;
+    const batch = gridPoints.slice(i, i + 100);
+    const locStr = batch.map(p => `${p.lat},${p.lon}`).join('|');
+    try {
+      const res = await fetch(`${ELEVATION_ENDPOINT}?locations=${encodeURIComponent(locStr)}`, { signal: offlineDownloadAbort.signal });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results) {
+          const toCache = [];
+          for (let j = 0; j < data.results.length; j++) {
+            const elev = typeof data.results[j].elevation === 'number' ? data.results[j].elevation : null;
+            if (elev !== null) toCache.push({ lat: batch[j].lat, lon: batch[j].lon, elev });
+            else elevFailed++;
+          }
+          putCachedElevations(toCache);
+        } else {
+          elevFailed += batch.length;
+        }
+      } else {
+        elevFailed += batch.length;
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') break;
+      elevFailed += batch.length;
+    }
+    elevDone += batch.length;
+    fill.style.width = (elevDone / elevTotal * 100).toFixed(1) + '%';
+    text.textContent = `גובה: ${elevDone.toLocaleString()} / ${elevTotal.toLocaleString()} נקודות${elevFailed ? ` (${elevFailed} נכשלו)` : ''}`;
+  }
+
+  if (offlineDownloadAbort.signal.aborted) {
+    toast('הורדה בוטלה', 2500);
   } else {
-    toast(`הורדה הושלמה: ${done - failed} אריחים${failed ? `, ${failed} נכשלו` : ''}`, 4000);
-    setTimeout(closeOfflineDl, 1500);
+    toast(`✓ ${(done - failed).toLocaleString()} אריחים + ${(elevDone - elevFailed).toLocaleString()} נקודות גובה זמינות אופליין`, 5000);
+    setTimeout(closeOfflineDl, 2000);
   }
   offlineDownloadAbort = null;
 }
