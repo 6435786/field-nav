@@ -248,7 +248,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .map-area{flex:1;position:relative;min-height:200px;background:var(--surface2)}
 #leafletMap{position:absolute;inset:0;width:100%;height:100%;z-index:0}
 .map-pin-msg{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.85);color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;z-index:500;pointer-events:none;white-space:nowrap;display:none}
-.show-sheet-btn{position:absolute;top:10px;right:10px;background:var(--primary);color:#fff;border:none;border-radius:22px;padding:9px 16px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.35);z-index:550;display:none;align-items:center;gap:6px}
+.show-sheet-btn{position:absolute;top:54px;right:10px;background:var(--primary);color:#fff;border:none;border-radius:22px;padding:9px 16px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.35);z-index:550;display:none;align-items:center;gap:6px}
 .show-sheet-btn.visible{display:inline-flex}
 .show-sheet-btn:active{transform:scale(.96)}
 .map-pin-msg.show{display:block;animation:fadeOut 2.5s forwards}
@@ -298,8 +298,8 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 /* Measurement mode banner + A/B markers */
 .measure-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;padding:8px 16px;border-radius:22px;font-size:13px;font-weight:600;z-index:560;box-shadow:0 4px 12px rgba(0,0,0,.3);display:none;align-items:center;gap:10px;max-width:90vw}
 .measure-banner.show{display:flex}
-.measure-banner button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:3px 12px;border-radius:12px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
-.measure-banner button:hover{background:rgba(255,255,255,.4)}
+.measure-banner .measure-close-x{background:#dc2626;border:2px solid #fff;color:#fff;width:28px;height:28px;padding:0;border-radius:50%;font-family:inherit;font-size:15px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.measure-banner .measure-close-x:hover{background:#b91c1c}
 .measure-marker{background:none!important;border:none!important;display:flex;align-items:center;justify-content:center}
 .measure-pin{width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.5);font-family:inherit}
 .measure-pin.a{background:#10b981}
@@ -320,7 +320,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .sheet-name{font-size:17px;font-weight:800;color:var(--text);line-height:1.2;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .sheet-name .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--primary-light);color:var(--primary)}
 .sheet-name .badge.unsaved{background:var(--warn-light);color:var(--warn)}
-.sheet-coords{font-size:12px;color:var(--text-muted);font-family:'SF Mono',Consolas,monospace;direction:ltr;margin-top:3px}
+/* .sheet-coords removed — coordinates now live in the "📐 קואורדינטות" popup */
 .sheet-close,.sheet-clear{background:var(--surface2);border:none;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-family:inherit;flex-shrink:0;line-height:1}
 .sheet-close{font-size:20px}
 .sheet-close:hover,.sheet-clear:hover{background:var(--border);color:var(--text)}
@@ -468,11 +468,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     </div>
   </div>
 
-  <!-- AUTH BANNER -->
-  <div class="auth-banner" id="authBanner" style="display:none">
-    <span class="lock-icon">🔓</span>
-    <span>לא מחובר — נקודות לא יישמרו</span>
-  </div>
+  <!-- (Auth banner removed — toast on "הוסף" tap already handles the unauthenticated case) -->
 
   <!-- INSTALL PROMPT BANNER -->
   <div class="install-banner" id="installBanner" style="display:none">
@@ -570,7 +566,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     </div>
     <div class="measure-banner" id="measureBanner">
       <span id="measureBannerText">בחר נקודה ראשונה</span>
-      <button onclick="exitMeasureMode()">בטל</button>
+      <button class="measure-close-x" onclick="exitMeasureMode()" title="סיום מדידה" aria-label="סיום">✕</button>
     </div>
   </div>
 
@@ -581,7 +577,6 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <div class="sheet-header">
       <div class="sheet-title">
         <div class="sheet-name" id="sheetName"></div>
-        <div class="sheet-coords" id="sheetCoords"></div>
       </div>
       <button class="sheet-clear" onclick="clearEverything()" aria-label="נקה" title="נקה הכל">🧹</button>
       <button class="sheet-close" onclick="closeSheet()" aria-label="סגור">×</button>
@@ -924,13 +919,11 @@ function signOutNow() {
 function skipAuth() {
   state.authSkipped = true;
   hideAuthModal();
-  document.getElementById('authBanner').style.display = 'flex';
 }
 
 function updateAuthUI() {
   const zone = document.getElementById('authZone');
   if (state.user) {
-    document.getElementById('authBanner').style.display = 'none';
     const photo = state.user.photoURL || '';
     const name = (state.user.displayName || state.user.email || '').split(' ')[0];
     zone.innerHTML = `
@@ -942,9 +935,6 @@ function updateAuthUI() {
     document.getElementById('addProjectBtn').disabled = false;
   } else {
     zone.innerHTML = `<button class="btn-signin-small" onclick="signInWithGoogle()">🔑 התחבר</button>`;
-    if (state.authSkipped) {
-      document.getElementById('authBanner').style.display = 'flex';
-    }
     document.getElementById('addProjectBtn').disabled = true;
   }
   updateAddPointBtn();
@@ -1759,7 +1749,7 @@ function setMeasureB(lat, lon) {
   state.measureMode = 'done';
   document.getElementById('coordInput').value = '';
   const mini = document.getElementById('detectedMini'); if (mini) { mini.textContent = ''; mini.className = 'detected-mini'; }
-  document.getElementById('measureBannerText').innerHTML = '📏 A → B · <span style="opacity:.85">לסיום לחץ "בטל"</span>';
+  document.getElementById('measureBannerText').innerHTML = '📏 A → B';
   // Fit map view to show both markers
   const bounds = L.latLngBounds([state.measureMarkerA.getLatLng(), state.measureMarkerB.getLatLng()]).pad(0.3);
   leafletMap.fitBounds(bounds);
@@ -2053,7 +2043,7 @@ function renderSheet() {
     ${isSaved ? '' : '<span class="badge unsaved">לא שמורה</span>'}
     ${projName ? `<span class="badge">${escapeHtml(projName)}</span>` : ''}
   `;
-  document.getElementById('sheetCoords').textContent = `${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`;
+  // (sheet-coords element removed — full coord/conversions live in the "📐 קואורדינטות" popup)
 
   // Body
   const body = document.getElementById('sheetBody');
@@ -2096,7 +2086,7 @@ function renderSheet() {
   html += `<div class="action-row">`;
   html += `<button class="action-btn" onclick="shareLink()"><span class="ic">🔗</span><span>שתף</span></button>`;
   html += `<button class="action-btn" onclick="toggleInlineQR()"><span class="ic">📱</span><span>QR</span></button>`;
-  html += `<button class="action-btn" onclick="openConversionsModal()"><span class="ic">📐</span><span>המרות</span></button>`;
+  html += `<button class="action-btn" onclick="openConversionsModal()"><span class="ic">📐</span><span>קואורדינטות</span></button>`;
   if (isSaved) {
     html += `<button class="action-btn" onclick="openEditPointModal(state.activePoint)"><span class="ic">✎</span><span>ערוך</span></button>`;
     html += `<button class="action-btn danger" onclick="deletePointFromSheet()"><span class="ic">🗑</span><span>מחק</span></button>`;
@@ -2315,9 +2305,9 @@ async function computeElevationProfile() {
         const sign = deltaToUser >= 0 ? '+' : '';
         const cls = deltaToUser > 5 ? 'up' : (deltaToUser < -5 ? 'down' : '');
         const icon = deltaToUser > 5 ? '⬆' : (deltaToUser < -5 ? '⬇' : '➖');
-        deltaTxt = ` <span class="muted">·</span> <b class="${cls}">${icon} ${sign}${deltaToUser} מ׳ ממך</b>`;
+        deltaTxt = ` <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${deltaToUser} מ׳ ממך</b></bdi>`;
       }
-      navProfile.innerHTML = `<b>${Math.round(peak.elev)} מ׳</b>${deltaTxt} <button class="profile-graph-btn" onclick="showElevationChart()">📊 גרף</button>`;
+      navProfile.innerHTML = `<bdi><b>${Math.round(peak.elev)} מ׳</b></bdi>${deltaTxt} <button class="profile-graph-btn" onclick="showElevationChart()">📊 גרף</button>`;
     }
 
     // Draw line on map
@@ -2474,11 +2464,14 @@ async function loadNavInfo(lat, lon) {
   const userPos = state.livePosition;
   const hasUser = !!userPos && typeof userPos.lat === 'number';
 
-  // Distance + azimuth (instant)
+  // Distance + azimuth (instant). <bdi> isolates each number-unit pair from the
+  // surrounding Hebrew so the BiDi algorithm doesn't reorder them across the
+  // "·" separator — fixes "מ' מעל פני הים · 703" appearing instead of
+  // "703 מ' מעל פני הים · ...".
   if (hasUser) {
     const d = distanceM(userPos.lat, userPos.lon, lat, lon);
     const bear = bearingDeg(userPos.lat, userPos.lon, lat, lon);
-    distAzEl.innerHTML = `<b>${fmtDistance(d)}</b> · ${Math.round(bear)}° <span class="muted">(${bearingToCardinal(bear)})</span>`;
+    distAzEl.innerHTML = `<bdi><b>${fmtDistance(d)}</b></bdi> <span class="muted">·</span> <bdi>${Math.round(bear)}°</bdi> <span class="muted">(${bearingToCardinal(bear)})</span>`;
   } else {
     distAzEl.innerHTML = `<span class="muted">לחץ "📍 מיקום נוכחי" כדי לחשב</span>`;
   }
@@ -2509,13 +2502,14 @@ async function loadNavInfo(lat, lon) {
     const userElev = hasUser ? arr[1] : null;
 
     if (typeof pointElev === 'number') {
-      const main = `<b>${Math.round(pointElev)}</b> <span class="muted">מ׳ מעל פני הים</span>`;
+      // Each "number + Hebrew unit" pair wrapped in <bdi> for correct RTL order
+      const main = `<bdi><b>${Math.round(pointElev)}</b> מ׳ מעל פני הים</bdi>`;
       if (hasUser && typeof userElev === 'number') {
         const delta = pointElev - userElev;
         const sign = delta >= 0 ? '+' : '';
         const cls = delta > 5 ? 'up' : (delta < -5 ? 'down' : '');
         const icon = delta > 5 ? '⬆' : (delta < -5 ? '⬇' : '➖');
-        elevEl.innerHTML = `${main} <span class="muted">·</span> <b class="${cls}">${icon} ${sign}${Math.round(delta)} מ׳ ממך</b>`;
+        elevEl.innerHTML = `${main} <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${Math.round(delta)} מ׳ ממך</b></bdi>`;
       } else {
         elevEl.innerHTML = main;
       }
