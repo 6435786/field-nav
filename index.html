@@ -210,6 +210,14 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .user-arrow-wrap{width:40px;height:40px;position:relative;transition:transform .18s ease-out}
 .user-arrow-cone{position:absolute;top:-2px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid rgba(26,86,219,.55);filter:drop-shadow(0 1px 2px rgba(0,0,0,.15))}
 .user-arrow-dot{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:var(--primary);border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+/* Manual location override — orange instead of blue */
+.user-location-marker.manual .user-arrow-cone{border-bottom-color:rgba(217,119,6,.55)}
+.user-location-marker.manual .user-arrow-dot{background:#d97706}
+.manual-loc-pin{width:34px;height:34px;background:#d97706;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}
+.manual-loc-pin::after{content:'📌';font-size:14px;transform:rotate(45deg)}
+.manual-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#d97706;color:#fff;padding:5px 14px;border-radius:18px;font-size:12px;font-weight:600;z-index:550;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none}
+.manual-banner.show{display:block}
+.manual-banner button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:2px 8px;border-radius:10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;margin-right:8px}
 .leaflet-control-tracking{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;user-select:none;border:none}
 .leaflet-control-tracking.active{background:var(--primary);color:#fff}
 .leaflet-control-tracking:hover{background:var(--surface2)}
@@ -444,6 +452,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     </div>
     <div class="quick-secondary">
       <button class="btn-quick" onclick="useCurrentLocation()" id="locBtn">📍 מיקום נוכחי</button>
+      <button class="btn-quick" onclick="openManualLocationModal()" id="manualLocBtn">📌 ידני</button>
       <button class="btn-quick" onclick="openScanner()">📷 סרוק QR</button>
     </div>
     <div class="detected-mini" id="detectedMini"></div>
@@ -462,6 +471,10 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <div id="leafletMap"></div>
     <div class="map-pin-msg" id="mapPinMsg">📍 נבחרה נקודה</div>
     <button class="show-sheet-btn" id="showSheetBtn" onclick="reopenActivePointSheet()">📍 הצג פרטים</button>
+    <div class="manual-banner" id="manualBanner">
+      <span>📌 מיקום ידני פעיל</span>
+      <button onclick="clearManualLocation()">איפוס ל-GPS</button>
+    </div>
 
     <!-- Bottom sheet (active point) -->
     <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
@@ -532,6 +545,26 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <div class="modal-actions">
       <button class="btn btn-cancel" onclick="closeModal('importPreviewModal')">ביטול</button>
       <button class="btn btn-confirm" onclick="confirmImport()" id="importConfirmBtn">הוסף</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manual location modal (set "my location" without GPS) -->
+<div class="modal" id="manualLocationModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeModal('manualLocationModal')">×</button>
+    <h3>📌 הגדר מיקום ידני</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px;line-height:1.5">
+      בחר נקודה שתחליף את המיקום הנוכחי שלך לחישובי גובה, אזימוט ומרחק.
+      מעקב GPS (🎯) יושהה עד שתלחץ "מיקום נוכחי" כדי לחזור ל-GPS אמיתי.
+    </p>
+    <label for="manualLocInput">קואורדינטות, קישור, או טקסט שיתוף</label>
+    <input type="text" id="manualLocInput" placeholder="31.78,35.20  /  https://maps.app.goo.gl/...  /  https://waze.com/..." autocomplete="off" dir="ltr">
+    <div class="detected-mini" id="manualLocDetected" style="margin:6px 0;min-height:14px"></div>
+    <button class="btn btn-secondary" onclick="pickManualLocationOnMap()" style="width:100%;margin-top:8px">🗺️ בחר במפה במקום</button>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeModal('manualLocationModal')">ביטול</button>
+      <button class="btn btn-confirm" onclick="confirmManualLocation()" id="manualLocConfirm" disabled>השתמש</button>
     </div>
   </div>
 </div>
@@ -711,6 +744,8 @@ const state = {
   pendingCoords: null,       // for add-point dialog
   editingPointId: null,
   editingProjectId: null,
+  manualLocation: false,         // true when livePosition was set by hand (no GPS)
+  pickingManualLocation: false,  // map-click mode for choosing the manual point
 };
 
 // ========== UTILS ==========
@@ -1387,9 +1422,129 @@ document.getElementById('coordInput').addEventListener('keydown', (e) => {
 });
 
 // ========== CURRENT LOCATION ==========
+// ========== MANUAL LOCATION (no GPS) ==========
+let pendingManualCoords = null;
+
+function openManualLocationModal() {
+  document.getElementById('manualLocInput').value = '';
+  document.getElementById('manualLocDetected').textContent = '';
+  document.getElementById('manualLocConfirm').disabled = true;
+  pendingManualCoords = null;
+  document.getElementById('manualLocationModal').classList.add('show');
+  setTimeout(() => document.getElementById('manualLocInput').focus(), 80);
+}
+
+// Live parse the manual-input field (debounced — same idea as the main coord input)
+let manualParseTimer;
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('manualLocInput');
+  if (!inp) return;
+  inp.addEventListener('input', () => {
+    clearTimeout(manualParseTimer);
+    manualParseTimer = setTimeout(async () => {
+      const val = inp.value;
+      const det = document.getElementById('manualLocDetected');
+      const btn = document.getElementById('manualLocConfirm');
+      pendingManualCoords = null;
+      btn.disabled = true;
+      if (!val.trim()) { det.textContent = ''; det.className = 'detected-mini'; return; }
+      const r = detectAndParse(val);
+      if (r && !r.error) {
+        pendingManualCoords = { lat: r.latLon[0], lon: r.latLon[1] };
+        det.textContent = `✓ ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)}`;
+        det.className = 'detected-mini';
+        btn.disabled = false;
+        return;
+      }
+      // Async URL expansion
+      const urlMatch = val.match(/https?:\/\/\S+/);
+      if (urlMatch) {
+        det.textContent = '⏳ מנסה להרחיב קישור...';
+        det.className = 'detected-mini';
+        try {
+          const c = await tryExpandUrl(urlMatch[0]);
+          if (inp.value !== val) return;
+          if (c) {
+            const lat = parseFloat(c[0]), lon = parseFloat(c[1]);
+            pendingManualCoords = { lat, lon };
+            det.textContent = `✓ מקישור מקוצר: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+            det.className = 'detected-mini';
+            btn.disabled = false;
+            return;
+          }
+        } catch (e) {}
+        det.textContent = '⚠️ לא הצלחתי להבין את הקלט';
+        det.className = 'detected-mini error';
+        return;
+      }
+      if (r && r.error) {
+        det.textContent = '⚠️ ' + r.error;
+        det.className = 'detected-mini error';
+      }
+    }, 350);
+  });
+});
+
+function confirmManualLocation() {
+  if (!pendingManualCoords) return;
+  setManualLocation(pendingManualCoords.lat, pendingManualCoords.lon);
+  closeModal('manualLocationModal');
+}
+
+function pickManualLocationOnMap() {
+  closeModal('manualLocationModal');
+  state.pickingManualLocation = true;
+  toast('לחץ על המפה כדי לבחור את המיקום הידני', 4000);
+}
+
+function handleManualLocationMapPick(e) {
+  state.pickingManualLocation = false;
+  setManualLocation(e.latlng.lat, e.latlng.lng);
+}
+
+function setManualLocation(lat, lon) {
+  // Pause GPS tracking if active — user's spec
+  if (watchId !== null && typeof stopTracking === 'function') stopTracking();
+
+  state.livePosition = { lat, lon, accuracy: null };
+  state.manualLocation = true;
+
+  // Render the user marker in orange (manual variant)
+  if (userLocationMarker) { leafletMap.removeLayer(userLocationMarker); userLocationMarker = null; }
+  if (userAccuracyCircle) { leafletMap.removeLayer(userAccuracyCircle); userAccuracyCircle = null; }
+  const icon = L.divIcon({
+    className: 'user-location-marker manual',
+    html: '<div class="user-arrow-wrap"><div class="user-arrow-cone"></div><div class="user-arrow-dot"></div></div>',
+    iconSize: [40, 40], iconAnchor: [20, 20]
+  });
+  userLocationMarker = L.marker([lat, lon], { icon, zIndexOffset: 1000, interactive: false }).addTo(leafletMap);
+
+  document.getElementById('manualBanner').classList.add('show');
+  if (state.activePoint) refreshSheetIfActive();
+  // Drop any stale elevation profile (it was computed against old "current position")
+  clearElevationProfile();
+  toast('📌 מיקום ידני הוגדר · מעקב GPS הושהה', 2800);
+}
+
+function clearManualLocation() {
+  state.manualLocation = false;
+  document.getElementById('manualBanner').classList.remove('show');
+  if (userLocationMarker) { leafletMap.removeLayer(userLocationMarker); userLocationMarker = null; }
+  state.livePosition = null;
+  useCurrentLocation();
+}
+
 function useCurrentLocation() {
   const btn = document.getElementById('locBtn');
   if (!navigator.geolocation) { toast('GPS לא נתמך'); return; }
+  // Pressing "current location" while in manual mode clears it and goes back to GPS
+  const wasManual = state.manualLocation;
+  if (wasManual) {
+    state.manualLocation = false;
+    document.getElementById('manualBanner')?.classList.remove('show');
+    if (userLocationMarker) { leafletMap.removeLayer(userLocationMarker); userLocationMarker = null; }
+    state.livePosition = null;
+  }
   btn.innerHTML = '<span class="spinner"></span> מאתר...';
   btn.disabled = true;
   navigator.geolocation.getCurrentPosition(pos => {
@@ -1446,6 +1601,7 @@ function initMap() {
   trackControl.addTo(leafletMap);
 
   leafletMap.on('click', (e) => {
+    if (state.pickingManualLocation) { handleManualLocationMapPick(e); return; }
     if (offlineSelectionActive) { handleOfflineCornerClick(e); return; }
     const { lat, lng } = e.latlng;
     document.getElementById('coordInput').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
@@ -3006,7 +3162,7 @@ function closeOfflineDl() {
 document.getElementById('qrScannerModal').addEventListener('click', (e) => {
   if (e.target.id === 'qrScannerModal') closeScanner();
 });
-['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal','offlineDlModal','conversionsModal','elevChartModal'].forEach(id => {
+['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal','offlineDlModal','conversionsModal','elevChartModal','manualLocationModal'].forEach(id => {
   const m = document.getElementById(id);
   m.addEventListener('click', (e) => { if (e.target.id === id && id !== 'authModal') closeModal(id); });
 });
