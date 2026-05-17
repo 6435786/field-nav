@@ -223,6 +223,8 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .coord-input{flex:1;min-width:0;padding:10px 12px;border:2px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:15px;font-weight:600;text-align:center;background:var(--surface2);color:var(--text);direction:ltr}
 .coord-input:focus{outline:none;border-color:var(--primary);background:#fff}
 .coord-input::placeholder{font-weight:400;color:var(--text-light);font-size:13px;text-align:center}
+.btn-clear-all{padding:0 10px;background:transparent;color:var(--text-muted);border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.btn-clear-all:hover{background:var(--surface2);color:var(--text)}
 .btn-add-point{padding:0 14px;background:var(--success);color:#fff;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0}
 .btn-add-point:hover{background:#047857}
 .btn-add-point:disabled{opacity:.5;cursor:not-allowed}
@@ -518,6 +520,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <div class="quick-input">
     <div class="quick-input-row">
       <input type="text" class="coord-input" id="coordInput" placeholder="הקלד קואורדינטות או הדבק קישור גוגל מפות..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="btn-clear-all" onclick="clearEverything()" id="clearAllBtn" title="נקה הכל">נקה</button>
       <button class="btn-add-point" id="addPointBtn" onclick="onAddPointClick()" disabled>➕ הוסף</button>
     </div>
     <div class="quick-secondary">
@@ -1814,6 +1817,46 @@ function reopenActivePointSheet() {
   if (state.activePoint) showPointInSheet(state.activePoint);
 }
 
+// "נקה" — wipes the in-progress state so the user can start fresh.
+// What it clears:
+//  - The coord input field
+//  - The active (unsaved) point + its red pin on the map
+//  - The bottom sheet (closes on mobile, empties on desktop)
+//  - The elevation profile line + peak ▲ marker on the map
+//  - Any saved points selected for azimuth measurement
+//  - Imported GPX/KML tracks visible on the map
+// What it does NOT touch:
+//  - Manual location (state.manualLocation stays — user explicitly set it)
+//  - Saved Firestore points / projects (those are persistent data)
+//  - Live GPS tracking state
+function clearEverything() {
+  // Coord input
+  document.getElementById('coordInput').value = '';
+  const mini = document.getElementById('detectedMini'); if (mini) { mini.textContent = ''; mini.className = 'detected-mini'; }
+  lastExpandedUrl = null;
+  pendingUrlName = null;
+  // Active (unsaved) point + marker
+  if (state.unsavedMarker) { leafletMap.removeLayer(state.unsavedMarker); state.unsavedMarker = null; }
+  state.activePoint = null;
+  // Elevation profile
+  clearElevationProfile();
+  // Azimuth selection
+  state.selectedForAzimuth = [];
+  if (typeof refreshAzimuth === 'function') refreshAzimuth();
+  if (typeof renderPointsOnMap === 'function') renderPointsOnMap();
+  // Imported tracks
+  if (typeof clearImportedTracks === 'function' && importedTrackLayers && importedTrackLayers.length) {
+    clearImportedTracks();
+  }
+  // Sheet UI
+  document.getElementById('pointSheet').classList.remove('show');
+  document.getElementById('sheetBackdrop').classList.remove('show');
+  document.getElementById('showSheetBtn')?.classList.remove('visible');
+  document.getElementById('sheetBody').innerHTML = '';
+  updateAddPointBtn();
+  toast('נוקה ✓', 1500);
+}
+
 function refreshSheetIfActive() {
   if (!state.activePoint) return;
   // If active point is saved, refresh its data from state.points
@@ -1887,6 +1930,7 @@ function renderSheet() {
     html += `<button class="action-btn danger" onclick="deletePointFromSheet()"><span class="ic">🗑</span><span>מחק</span></button>`;
   } else {
     html += `<button class="action-btn" onclick="addUnsavedToCollection()" ${state.user ? '' : 'disabled'}><span class="ic">➕</span><span>הוסף</span></button>`;
+    html += `<button class="action-btn" onclick="clearEverything()"><span class="ic">🧹</span><span>נקה</span></button>`;
   }
   html += `</div>`;
 
@@ -1897,7 +1941,7 @@ function renderSheet() {
   html += `<div class="nav-info-card">
     <div class="nav-info-row"><span class="nii">⛰️</span><span class="nil">גובה בנקודה:</span><span class="niv" id="navElev"><span class="spinner"></span></span></div>
     <div class="nav-info-row"><span class="nii">🧭</span><span class="nil">מרחק ואזימוט ממך:</span><span class="niv" id="navDistAz"><span class="muted">—</span></span></div>
-    <div class="nav-info-row" id="profileRow"><span class="nii">📈</span><span class="nil">גובה מקס׳ בקו:</span><span class="niv" id="navProfile"><button class="profile-btn" onclick="computeElevationProfile()" id="profileBtn" disabled>חשב</button></span></div>
+    <div class="nav-info-row" id="profileRow"><span class="nii">📈</span><span class="nil">גובה מקס׳ בקו:</span><span class="niv" id="navProfile"><span class="muted">צריך מיקום נוכחי</span></span></div>
   </div>`;
 
   // (Conversions moved to a popup — "📐 המרות" button in the action row)
@@ -1994,9 +2038,6 @@ async function computeElevationProfile() {
     toast('צריך מיקום נוכחי + נקודה פעילה', 2500);
     return;
   }
-  const btn = document.getElementById('profileBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ מחשב...'; }
-
   // Sample 100 points along the straight line, linearly in lat/lon (good enough for short distances)
   const N = 100;
   const samples = [];
@@ -2011,8 +2052,9 @@ async function computeElevationProfile() {
   try {
     const elevs = await fetchElevations(samples);
     if (!elevs || elevs.length !== N) {
-      toast('שגיאה בקריאת הגבהים מ-OpenTopoData', 3500);
-      if (btn) { btn.disabled = false; btn.textContent = 'נסה שוב'; }
+      const navProfile = document.getElementById('navProfile');
+      if (navProfile) navProfile.innerHTML = '<span class="muted error">שגיאה</span>';
+      toast('שגיאה בקריאת הגבהים', 3000);
       return;
     }
     // Annotate samples with elev + cumulative distance
@@ -2061,10 +2103,10 @@ async function computeElevationProfile() {
     const peakTooltip = formatElevationWithDelta(peak.elev, userElev) || `${Math.round(peak.elev)} מ׳`;
     profilePeakMarker.bindTooltip(`גובה מקס׳: ${peakTooltip}`, { permanent: false, direction: 'top' });
 
-    if (btn) { btn.disabled = true; btn.textContent = '✓'; }
   } catch (e) {
+    const navProfile = document.getElementById('navProfile');
+    if (navProfile) navProfile.innerHTML = '<span class="muted error">שגיאה ברשת</span>';
     toast('שגיאה: ' + (e.message || e), 3500);
-    if (btn) { btn.disabled = false; btn.textContent = 'נסה שוב'; }
   }
 }
 
@@ -2206,16 +2248,16 @@ async function loadNavInfo(lat, lon) {
 
   elevEl.innerHTML = '<span class="spinner"></span>';
 
-  // "Calculate heights along the line" — only enabled when we have both user GPS and an active point
-  const profileBtn = document.getElementById('profileBtn');
-  if (profileBtn) {
-    if (hasUser) {
-      profileBtn.disabled = false;
-      if (!lastProfileData) profileBtn.textContent = 'חשב';
-    } else {
-      profileBtn.disabled = true;
-      profileBtn.textContent = 'צריך מיקום נוכחי';
-    }
+  // Elevation profile auto-runs once we have both an active point + user location
+  // (no manual "חשב" button anymore). It won't re-run dynamically on GPS movement —
+  // by user's preference, only fires once until point/location changes.
+  const navProfileEl = document.getElementById('navProfile');
+  if (hasUser && !lastProfileData) {
+    if (navProfileEl) navProfileEl.innerHTML = '<span class="spinner"></span>';
+    // Fire-and-forget; updates the row + draws line + drops the peak marker
+    computeElevationProfile();
+  } else if (!hasUser && navProfileEl) {
+    navProfileEl.innerHTML = '<span class="muted">צריך מיקום נוכחי</span>';
   }
 
   if (navInfoAbort) navInfoAbort.abort();
