@@ -290,6 +290,16 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .manual-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#d97706;color:#fff;padding:5px 14px;border-radius:18px;font-size:12px;font-weight:600;z-index:550;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none}
 .manual-banner.show{display:block}
 .manual-banner button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:2px 8px;border-radius:10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;margin-right:8px}
+
+/* Measurement mode banner + A/B markers */
+.measure-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;padding:8px 16px;border-radius:22px;font-size:13px;font-weight:600;z-index:560;box-shadow:0 4px 12px rgba(0,0,0,.3);display:none;align-items:center;gap:10px;max-width:90vw}
+.measure-banner.show{display:flex}
+.measure-banner button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:3px 12px;border-radius:12px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+.measure-banner button:hover{background:rgba(255,255,255,.4)}
+.measure-marker{background:none!important;border:none!important;display:flex;align-items:center;justify-content:center}
+.measure-pin{width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.5);font-family:inherit}
+.measure-pin.a{background:#10b981}
+.measure-pin.b{background:#dc2626}
 .leaflet-control-tracking{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;user-select:none;border:none}
 .leaflet-control-tracking.active{background:var(--primary);color:#fff}
 .leaflet-control-tracking:hover{background:var(--surface2)}
@@ -527,6 +537,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
       <button class="btn-quick" onclick="useCurrentLocation()" id="locBtn">📍 מיקום נוכחי</button>
       <button class="btn-quick" onclick="openManualLocationModal()" id="manualLocBtn">📌 ידני</button>
       <button class="btn-quick" onclick="openScanner()">📷 סרוק QR</button>
+      <button class="btn-quick" onclick="enterMeasureMode()" id="measureBtn">📏 מדידה</button>
     </div>
     <div class="detected-mini" id="detectedMini"></div>
     <div class="url-fallback" id="urlFallback">
@@ -547,6 +558,10 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <div class="manual-banner" id="manualBanner">
       <span>📌 מיקום ידני פעיל</span>
       <button onclick="clearManualLocation()">איפוס ל-GPS</button>
+    </div>
+    <div class="measure-banner" id="measureBanner">
+      <span id="measureBannerText">בחר נקודה ראשונה</span>
+      <button onclick="exitMeasureMode()">בטל</button>
     </div>
   </div>
 
@@ -819,6 +834,9 @@ const state = {
   editingProjectId: null,
   manualLocation: false,         // true when livePosition was set by hand (no GPS)
   pickingManualLocation: false,  // map-click mode for choosing the manual point
+  measureMode: null,             // null | 'A' | 'B' | 'done' — two-point measurement flow
+  measureMarkerA: null,
+  measureMarkerB: null,
 };
 
 // ========== UTILS ==========
@@ -1608,6 +1626,95 @@ function clearManualLocation() {
   useCurrentLocation();
 }
 
+// ========== TWO-POINT MEASUREMENT ==========
+// Flow: user clicks "📏 מדידה" → picks point A (any input method) → picks point B
+// → the sheet opens with normal nav-info treating A as livePosition and B as
+// activePoint, so distance/azimuth/elevation/profile all read A→B.
+function enterMeasureMode() {
+  // Reset any previous measurement silently
+  if (state.measureMarkerA) { leafletMap.removeLayer(state.measureMarkerA); state.measureMarkerA = null; }
+  if (state.measureMarkerB) { leafletMap.removeLayer(state.measureMarkerB); state.measureMarkerB = null; }
+  state.measureMode = 'A';
+  // Clear any current active point UI so the user starts fresh
+  if (state.unsavedMarker) { leafletMap.removeLayer(state.unsavedMarker); state.unsavedMarker = null; }
+  state.activePoint = null;
+  document.getElementById('pointSheet').classList.remove('show');
+  document.getElementById('sheetBackdrop').classList.remove('show');
+  document.getElementById('showSheetBtn')?.classList.remove('visible');
+  document.getElementById('sheetBody').innerHTML = '';
+  clearElevationProfile();
+  document.getElementById('coordInput').value = '';
+  const mini = document.getElementById('detectedMini'); if (mini) { mini.textContent = ''; mini.className = 'detected-mini'; }
+  // Show banner
+  document.getElementById('measureBannerText').textContent = '📏 בחר נקודה A (קליק במפה / הזנה / QR / מיקום נוכחי)';
+  document.getElementById('measureBanner').classList.add('show');
+  toast('מצב מדידה: בחר נקודה ראשונה (A)', 2500);
+}
+
+function exitMeasureMode() {
+  if (state.measureMarkerA) { leafletMap.removeLayer(state.measureMarkerA); state.measureMarkerA = null; }
+  if (state.measureMarkerB) { leafletMap.removeLayer(state.measureMarkerB); state.measureMarkerB = null; }
+  state.measureMode = null;
+  document.getElementById('measureBanner').classList.remove('show');
+  // Also clear the rest of the active state (we don't want a half-measurement to leak into normal mode)
+  if (state.unsavedMarker) { leafletMap.removeLayer(state.unsavedMarker); state.unsavedMarker = null; }
+  state.activePoint = null;
+  state.livePosition = null;
+  document.getElementById('pointSheet').classList.remove('show');
+  document.getElementById('sheetBackdrop').classList.remove('show');
+  document.getElementById('showSheetBtn')?.classList.remove('visible');
+  document.getElementById('sheetBody').innerHTML = '';
+  clearElevationProfile();
+}
+
+function setMeasureA(lat, lon) {
+  if (state.measureMarkerA) leafletMap.removeLayer(state.measureMarkerA);
+  state.measureMarkerA = L.marker([lat, lon], {
+    icon: L.divIcon({
+      className: 'measure-marker',
+      html: '<div class="measure-pin a">A</div>',
+      iconSize: [34, 34], iconAnchor: [17, 17]
+    }),
+    zIndexOffset: 800,
+  }).addTo(leafletMap);
+  // A becomes "your position" for the measurement so the normal nav-info path computes A→B
+  state.livePosition = { lat, lon, accuracy: null };
+  state.measureMode = 'B';
+  // Clear input so user knows the system accepted A and can now type B fresh
+  document.getElementById('coordInput').value = '';
+  const mini = document.getElementById('detectedMini'); if (mini) { mini.textContent = ''; mini.className = 'detected-mini'; }
+  document.getElementById('measureBannerText').textContent = '📏 A הוגדר · עכשיו בחר נקודה B';
+  toast('A הוגדר. בחר B', 1800);
+}
+
+function setMeasureB(lat, lon) {
+  if (state.measureMarkerB) leafletMap.removeLayer(state.measureMarkerB);
+  state.measureMarkerB = L.marker([lat, lon], {
+    icon: L.divIcon({
+      className: 'measure-marker',
+      html: '<div class="measure-pin b">B</div>',
+      iconSize: [34, 34], iconAnchor: [17, 17]
+    }),
+    zIndexOffset: 800,
+  }).addTo(leafletMap);
+  // B becomes the active point — triggers the normal sheet flow with A→B calculations
+  state.activePoint = {
+    lat, lon, isSaved: false,
+    name: 'מדידה A → B',
+    suggestedName: null,
+  };
+  state.measureMode = 'done';
+  document.getElementById('coordInput').value = '';
+  const mini = document.getElementById('detectedMini'); if (mini) { mini.textContent = ''; mini.className = 'detected-mini'; }
+  document.getElementById('measureBannerText').innerHTML = '📏 A → B · <span style="opacity:.85">לסיום לחץ "בטל"</span>';
+  // Fit map view to show both markers
+  const bounds = L.latLngBounds([state.measureMarkerA.getLatLng(), state.measureMarkerB.getLatLng()]).pad(0.3);
+  leafletMap.fitBounds(bounds);
+  // Open the sheet — its nav-info auto-computes against state.livePosition (=A)
+  clearElevationProfile();
+  showPointInSheet(state.activePoint);
+}
+
 function useCurrentLocation() {
   const btn = document.getElementById('locBtn');
   if (!navigator.geolocation) { toast('GPS לא נתמך'); return; }
@@ -1623,10 +1730,13 @@ function useCurrentLocation() {
   btn.disabled = true;
   navigator.geolocation.getCurrentPosition(pos => {
     const { latitude, longitude, accuracy } = pos.coords;
-    const hadActivePoint = !!state.activePoint;
-    state.livePosition = { lat: latitude, lon: longitude, accuracy };
     btn.innerHTML = '📍 מיקום נוכחי';
     btn.disabled = false;
+    // Route GPS to A/B if we're in measurement mode
+    if (state.measureMode === 'A') { setMeasureA(latitude, longitude); return; }
+    if (state.measureMode === 'B') { setMeasureB(latitude, longitude); return; }
+    const hadActivePoint = !!state.activePoint;
+    state.livePosition = { lat: latitude, lon: longitude, accuracy };
     if (hadActivePoint) {
       // Don't replace the active point — user just wants GPS so nav-info (elevation
       // delta + distance + azimuth) can be computed against the existing point.
@@ -1689,6 +1799,9 @@ function initMap() {
 }
 
 function setActiveUnsavedPoint(lat, lon, fromMapClick = false, suggestedName = null) {
+  // Route through measurement mode if active — any incoming coordinate becomes A or B
+  if (state.measureMode === 'A') { setMeasureA(lat, lon); return; }
+  if (state.measureMode === 'B') { setMeasureB(lat, lon); return; }
   state.activePoint = {
     lat, lon, isSaved: false,
     name: 'נקודה לא שמורה',
@@ -1830,6 +1943,8 @@ function reopenActivePointSheet() {
 //  - Saved Firestore points / projects (those are persistent data)
 //  - Live GPS tracking state
 function clearEverything() {
+  // If a measurement is in progress, exit it too — clearEverything is a full reset
+  if (state.measureMode) { exitMeasureMode(); return; }
   // Coord input
   document.getElementById('coordInput').value = '';
   const mini = document.getElementById('detectedMini'); if (mini) { mini.textContent = ''; mini.className = 'detected-mini'; }
