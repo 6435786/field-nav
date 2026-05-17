@@ -1456,6 +1456,17 @@ document.getElementById('coordInput').addEventListener('input', () => {
     }
     const r = detectAndParse(input);
     if (r && !r.error) {
+      // In measurement mode we don't auto-commit on every keystroke — the debounce
+      // would lock in a half-typed number (e.g. "31.776899,35" parses as valid before
+      // the user finishes typing the second decimal). Show what was detected and
+      // require an explicit Enter (or paste of a complete URL) to apply.
+      if (state.measureMode === 'A' || state.measureMode === 'B') {
+        const slot = state.measureMode;
+        mini.innerHTML = `✓ ${r.type}: ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)} <span class="muted">— לחץ Enter לאישור כנקודה ${slot}</span>`;
+        mini.className = 'detected-mini';
+        updateAddPointBtn();
+        return;
+      }
       mini.textContent = `✓ ${r.type}: ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)}`;
       mini.className = 'detected-mini';
       setActiveUnsavedPoint(r.latLon[0], r.latLon[1], false, r.suggestedName);
@@ -1479,6 +1490,8 @@ document.getElementById('coordInput').addEventListener('input', () => {
           const coords = await tryExpandUrl(url);
           if (document.getElementById('coordInput').value === input && coords) {
             const lat = parseFloat(coords[0]), lon = parseFloat(coords[1]);
+            // URLs are by nature complete — safe to commit immediately even in measure mode
+            // (the partial-typing race only affects manually typed numbers)
             mini.textContent = `✓ מקישור מקוצר: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
             mini.className = 'detected-mini';
             setActiveUnsavedPoint(lat, lon, false, nameFromShare);
@@ -1509,7 +1522,11 @@ document.getElementById('coordInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     const r = parseInputForCoords();
-    if (r) { onAddPointClick(); }
+    if (!r) return;
+    // In measurement mode, Enter is the explicit commit signal — apply to A or B
+    if (state.measureMode === 'A') { setMeasureA(r.latLon[0], r.latLon[1]); return; }
+    if (state.measureMode === 'B') { setMeasureB(r.latLon[0], r.latLon[1]); return; }
+    onAddPointClick();
   }
 });
 
