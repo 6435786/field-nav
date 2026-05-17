@@ -66,6 +66,28 @@ body,.app,.app-header,.project-bar,.quick-input,.sheet,.modal-content,.card,.coo
 [data-theme="dark"] .coord-input:focus{background:var(--surface)}
 [data-theme="dark"] .vis-opt{background:var(--surface2)}
 
+/* Dark-mode contrast fixes (problem spots reported by user) */
+/* Placeholders: --text-light is too dim on dark surfaces — make them readable */
+[data-theme="dark"] ::placeholder,
+[data-theme="dark"] .coord-input::placeholder{color:rgba(241,245,249,.45)!important}
+/* Google sign-in button: bg stays white per Google brand guideline,
+   so its text must stay dark regardless of theme */
+[data-theme="dark"] .btn-google-big{color:#0f172a}
+[data-theme="dark"] .btn-google-big:hover{background:#f1f5f9}
+/* Install banner's "התקן" button: white bg + primary text — primary in dark
+   is lighter blue, contrast on white is poor. Force a darker blue. */
+[data-theme="dark"] .install-banner .install-btn{color:#1a56db}
+/* Make help/muted text inside modals brighter for dark theme */
+[data-theme="dark"] .modal-content p,
+[data-theme="dark"] .auth-modal-content p,
+[data-theme="dark"] .modal-info{color:#cbd5e1}
+/* Native form controls — Chrome dark scheme adoption */
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea{color-scheme:dark;background:var(--surface2);color:var(--text);border-color:var(--border-strong)}
+/* Select dropdown chevron icon adjusted for dark mode */
+[data-theme="dark"] .project-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23cbd5e1' stroke-width='2'%3E%3Cpolyline points='3 5 6 8 9 5'/%3E%3C/svg%3E")}
+
 /* Dark-mode for Leaflet built-in controls (their own white CSS) */
 [data-theme="dark"] .leaflet-bar a,
 [data-theme="dark"] .leaflet-control-layers{background:var(--surface);color:var(--text);border-color:var(--border)}
@@ -2979,16 +3001,11 @@ function toggleTheme() {
   applyTheme(next);
   localStorage.setItem(THEME_KEY, next);
 }
-// Init theme: saved preference > system preference > light
+// Init theme: saved preference > LIGHT default (don't follow OS — the app's
+// primary use is outdoor daytime; dark mode is opt-in only via the ⋮ menu)
 (function initTheme() {
   const saved = localStorage.getItem(THEME_KEY);
-  if (saved === 'dark' || saved === 'light') {
-    applyTheme(saved);
-  } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    applyTheme('dark');
-  } else {
-    applyTheme('light');
-  }
+  applyTheme(saved === 'dark' ? 'dark' : 'light');
 })();
 
 // ========== OFFLINE TILE DOWNLOAD (Sprint 3) ==========
