@@ -290,6 +290,10 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .manual-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#d97706;color:#fff;padding:5px 14px;border-radius:18px;font-size:12px;font-weight:600;z-index:550;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none}
 .manual-banner.show{display:block}
 .manual-banner button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:2px 8px;border-radius:10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;margin-right:8px}
+.manual-pick-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#d97706;color:#fff;padding:8px 16px;border-radius:22px;font-size:13px;font-weight:600;z-index:560;box-shadow:0 4px 12px rgba(0,0,0,.3);display:none;align-items:center;gap:10px;max-width:90vw}
+.manual-pick-banner.show{display:flex}
+.manual-pick-banner button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:3px 12px;border-radius:12px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+.manual-pick-banner button:hover{background:rgba(255,255,255,.4)}
 
 /* Measurement mode banner + A/B markers */
 .measure-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;padding:8px 16px;border-radius:22px;font-size:13px;font-weight:600;z-index:560;box-shadow:0 4px 12px rgba(0,0,0,.3);display:none;align-items:center;gap:10px;max-width:90vw}
@@ -317,8 +321,9 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .sheet-name .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--primary-light);color:var(--primary)}
 .sheet-name .badge.unsaved{background:var(--warn-light);color:var(--warn)}
 .sheet-coords{font-size:12px;color:var(--text-muted);font-family:'SF Mono',Consolas,monospace;direction:ltr;margin-top:3px}
-.sheet-close{background:var(--surface2);border:none;width:32px;height:32px;border-radius:50%;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-family:inherit;flex-shrink:0;line-height:1}
-.sheet-close:hover{background:var(--border)}
+.sheet-close,.sheet-clear{background:var(--surface2);border:none;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-family:inherit;flex-shrink:0;line-height:1}
+.sheet-close{font-size:20px}
+.sheet-close:hover,.sheet-clear:hover{background:var(--border);color:var(--text)}
 
 .sheet-body{padding:12px 16px;overflow-y:auto;flex:1}
 
@@ -535,7 +540,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     </div>
     <div class="quick-secondary">
       <button class="btn-quick" onclick="useCurrentLocation()" id="locBtn">📍 מיקום נוכחי</button>
-      <button class="btn-quick" onclick="openManualLocationModal()" id="manualLocBtn">📌 ידני</button>
+      <button class="btn-quick" onclick="enterManualPickMode()" id="manualLocBtn">📌 ידני</button>
       <button class="btn-quick" onclick="openScanner()">📷 סרוק QR</button>
       <button class="btn-quick" onclick="enterMeasureMode()" id="measureBtn">📏 מדידה</button>
     </div>
@@ -559,6 +564,10 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
       <span>📌 מיקום ידני פעיל</span>
       <button onclick="clearManualLocation()">איפוס ל-GPS</button>
     </div>
+    <div class="manual-pick-banner" id="manualPickBanner">
+      <span>📌 בחר נקודה (קליק במפה / הזנה + Enter / QR / מיקום נוכחי)</span>
+      <button onclick="exitManualPickMode()">בטל</button>
+    </div>
     <div class="measure-banner" id="measureBanner">
       <span id="measureBannerText">בחר נקודה ראשונה</span>
       <button onclick="exitMeasureMode()">בטל</button>
@@ -574,6 +583,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
         <div class="sheet-name" id="sheetName"></div>
         <div class="sheet-coords" id="sheetCoords"></div>
       </div>
+      <button class="sheet-clear" onclick="clearEverything()" aria-label="נקה" title="נקה הכל">🧹</button>
       <button class="sheet-close" onclick="closeSheet()" aria-label="סגור">×</button>
     </div>
     <div class="sheet-body" id="sheetBody"></div>
@@ -837,6 +847,7 @@ const state = {
   measureMode: null,             // null | 'A' | 'B' | 'done' — two-point measurement flow
   measureMarkerA: null,
   measureMarkerB: null,
+  manualPicking: false,          // banner-based "pick a manual location" mode
 };
 
 // ========== UTILS ==========
@@ -1456,13 +1467,19 @@ document.getElementById('coordInput').addEventListener('input', () => {
     }
     const r = detectAndParse(input);
     if (r && !r.error) {
-      // In measurement mode we don't auto-commit on every keystroke — the debounce
-      // would lock in a half-typed number (e.g. "31.776899,35" parses as valid before
-      // the user finishes typing the second decimal). Show what was detected and
-      // require an explicit Enter (or paste of a complete URL) to apply.
+      // In measure / manual-pick modes we don't auto-commit on every keystroke —
+      // the debounce would lock in a half-typed number (e.g. "31.776899,35" parses
+      // as valid before the user finishes typing the second decimal). Show what
+      // was detected and require an explicit Enter to apply.
       if (state.measureMode === 'A' || state.measureMode === 'B') {
         const slot = state.measureMode;
         mini.innerHTML = `✓ ${r.type}: ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)} <span class="muted">— לחץ Enter לאישור כנקודה ${slot}</span>`;
+        mini.className = 'detected-mini';
+        updateAddPointBtn();
+        return;
+      }
+      if (state.manualPicking) {
+        mini.innerHTML = `✓ ${r.type}: ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)} <span class="muted">— לחץ Enter לאישור כמיקום ידני</span>`;
         mini.className = 'detected-mini';
         updateAddPointBtn();
         return;
@@ -1523,9 +1540,10 @@ document.getElementById('coordInput').addEventListener('keydown', (e) => {
     e.preventDefault();
     const r = parseInputForCoords();
     if (!r) return;
-    // In measurement mode, Enter is the explicit commit signal — apply to A or B
+    // In special modes, Enter is the explicit commit signal
     if (state.measureMode === 'A') { setMeasureA(r.latLon[0], r.latLon[1]); return; }
     if (state.measureMode === 'B') { setMeasureB(r.latLon[0], r.latLon[1]); return; }
+    if (state.manualPicking) { setManualLocation(r.latLon[0], r.latLon[1]); exitManualPickMode(); document.getElementById('coordInput').value=''; const mini=document.getElementById('detectedMini'); if(mini){mini.textContent='';mini.className='detected-mini';} return; }
     onAddPointClick();
   }
 });
@@ -1643,6 +1661,22 @@ function clearManualLocation() {
   useCurrentLocation();
 }
 
+// Banner-based manual location pick (replaces the old modal flow).
+// Same pattern as measure mode — banner appears, the next coord-bearing
+// gesture (map tap / typed-and-Enter / pasted URL / QR scan / "מיקום נוכחי")
+// becomes the manual location.
+function enterManualPickMode() {
+  // Don't allow inside measure mode — that flow has its own A/B handling
+  if (state.measureMode) { toast('סיים מצב מדידה קודם', 2000); return; }
+  state.manualPicking = true;
+  document.getElementById('manualPickBanner').classList.add('show');
+  toast('בחר נקודה כדי להגדיר אותה כמיקום ידני', 2200);
+}
+function exitManualPickMode() {
+  state.manualPicking = false;
+  document.getElementById('manualPickBanner').classList.remove('show');
+}
+
 // ========== TWO-POINT MEASUREMENT ==========
 // Flow: user clicks "📏 מדידה" → picks point A (any input method) → picks point B
 // → the sheet opens with normal nav-info treating A as livePosition and B as
@@ -1685,6 +1719,7 @@ function exitMeasureMode() {
 }
 
 function setMeasureA(lat, lon) {
+  clearTimeout(parseTimer); // cancel any debounce that would re-run on the now-empty input
   if (state.measureMarkerA) leafletMap.removeLayer(state.measureMarkerA);
   state.measureMarkerA = L.marker([lat, lon], {
     icon: L.divIcon({
@@ -1705,6 +1740,7 @@ function setMeasureA(lat, lon) {
 }
 
 function setMeasureB(lat, lon) {
+  clearTimeout(parseTimer); // cancel any debounce that would re-run on the now-empty input
   if (state.measureMarkerB) leafletMap.removeLayer(state.measureMarkerB);
   state.measureMarkerB = L.marker([lat, lon], {
     icon: L.divIcon({
@@ -1749,9 +1785,10 @@ function useCurrentLocation() {
     const { latitude, longitude, accuracy } = pos.coords;
     btn.innerHTML = '📍 מיקום נוכחי';
     btn.disabled = false;
-    // Route GPS to A/B if we're in measurement mode
+    // Route GPS to A/B in measurement mode, or to manual location in manual-pick mode
     if (state.measureMode === 'A') { setMeasureA(latitude, longitude); return; }
     if (state.measureMode === 'B') { setMeasureB(latitude, longitude); return; }
+    if (state.manualPicking) { setManualLocation(latitude, longitude); exitManualPickMode(); return; }
     const hadActivePoint = !!state.activePoint;
     state.livePosition = { lat: latitude, lon: longitude, accuracy };
     if (hadActivePoint) {
@@ -1787,7 +1824,8 @@ function initMap() {
     'שבילי ישראל': L.tileLayer('https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', { attribution: '© Israel Hiking', maxZoom: 16 })
   };
   layers['לוויין'].addTo(leafletMap);
-  L.control.layers(null, layers, { collapsed: true, position: 'topleft' }).addTo(leafletMap);
+  // Layers are mutually exclusive — render as base-layer radio, not overlay checkboxes
+  L.control.layers(layers, null, { collapsed: true, position: 'topleft' }).addTo(leafletMap);
 
   const trackControl = L.control({ position: 'bottomleft' });
   trackControl.onAdd = function() {
@@ -1816,9 +1854,11 @@ function initMap() {
 }
 
 function setActiveUnsavedPoint(lat, lon, fromMapClick = false, suggestedName = null) {
-  // Route through measurement mode if active — any incoming coordinate becomes A or B
+  // Route through measurement / manual-pick modes if active — any incoming
+  // coordinate is treated as the picked point for that mode
   if (state.measureMode === 'A') { setMeasureA(lat, lon); return; }
   if (state.measureMode === 'B') { setMeasureB(lat, lon); return; }
+  if (state.manualPicking) { setManualLocation(lat, lon); exitManualPickMode(); return; }
   state.activePoint = {
     lat, lon, isSaved: false,
     name: 'נקודה לא שמורה',
@@ -2062,8 +2102,8 @@ function renderSheet() {
     html += `<button class="action-btn danger" onclick="deletePointFromSheet()"><span class="ic">🗑</span><span>מחק</span></button>`;
   } else {
     html += `<button class="action-btn" onclick="addUnsavedToCollection()" ${state.user ? '' : 'disabled'}><span class="ic">➕</span><span>הוסף</span></button>`;
-    html += `<button class="action-btn" onclick="clearEverything()"><span class="ic">🧹</span><span>נקה</span></button>`;
   }
+  // (נקה moved to the sheet header — small 🧹 icon next to the close X)
   html += `</div>`;
 
   // QR inline placeholder
