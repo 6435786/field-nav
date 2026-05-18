@@ -1,6 +1,6 @@
 // field-nav service worker — offline shell + cached library code
 // Bump CACHE_VERSION on every release that ships changes to the cached files.
-const CACHE_VERSION = 'v39';
+const CACHE_VERSION = 'v40';
 const SHELL_CACHE = `fieldnav-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `fieldnav-runtime-${CACHE_VERSION}`;
 
@@ -80,25 +80,27 @@ self.addEventListener('fetch', event => {
 
 async function cacheFirst(req, cacheName) {
   const cache = await caches.open(cacheName);
-  // Try exact match first. If miss and this is an HTML navigation (e.g. share-target
-  // brought us to "./?share_text=..."), fall back to the cached shell ignoring the
-  // query string so the PWA still opens offline.
-  let cached = await cache.match(req);
-  if (!cached) {
-    const accept = req.headers.get('Accept') || '';
-    if (accept.includes('text/html') || req.mode === 'navigate') {
-      cached = await cache.match(req, { ignoreSearch: true })
-        || await cache.match('./index.html')
-        || await cache.match('./');
-    }
-  }
+  const cached = await cache.match(req);
   if (cached) return cached;
+  // Targeted fallback: ONLY when the root path is navigated to with a query
+  // string (e.g. Web Share Target landing at "./?share_text=..."), serve the
+  // cached index.html shell. Don't apply this to /go.html?q=... or any other
+  // path — those must either hit their own cached file or fall through to a
+  // fresh network fetch.
+  try {
+    const url = new URL(req.url);
+    const isRootPath = url.pathname === '/' || url.pathname.endsWith('/index.html');
+    const isNav = (req.headers.get('Accept') || '').includes('text/html') || req.mode === 'navigate';
+    if (isRootPath && isNav && url.search) {
+      const shell = await cache.match('./index.html') || await cache.match('./');
+      if (shell) return shell;
+    }
+  } catch (e) { /* URL parse failure — ignore, fall through to network */ }
   try {
     const res = await fetch(req);
     if (res && res.ok) cache.put(req, res.clone());
     return res;
   } catch (e) {
-    // Offline + nothing cached — let the page handle the failure
     return new Response('', { status: 504, statusText: 'offline' });
   }
 }
