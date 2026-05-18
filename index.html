@@ -511,6 +511,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <button onclick="exportCurrentAsGPX()">📤 ייצוא הפרוייקט הנוכחי</button>
     <button onclick="clearImportedTracks()" id="clearTracksBtn" style="display:none">🧹 נקה מסלולים מיובאים</button>
     <button onclick="openOfflineDownloader()">💾 הורד אריחי מפה לאופליין</button>
+    <button onclick="triggerInstall()" id="installAppBtn">📲 התקן כאפליקציה</button>
     <button onclick="toggleTheme()" id="themeToggleBtn">🌙 מצב לילה</button>
   </div>
 
@@ -4058,8 +4059,19 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 window.addEventListener('appinstalled', () => {
   document.getElementById('installBanner').style.display = 'none';
+  const installMenuBtn = document.getElementById('installAppBtn');
+  if (installMenuBtn) installMenuBtn.style.display = 'none';
   deferredInstallPrompt = null;
   toast('הותקן בהצלחה ✓');
+});
+
+// Hide the "Install" menu entry when the app is already running as a standalone PWA
+// (the user already installed it; install dialog isn't applicable anymore).
+document.addEventListener('DOMContentLoaded', () => {
+  if (isRunningStandalone()) {
+    const btn = document.getElementById('installAppBtn');
+    if (btn) btn.style.display = 'none';
+  }
 });
 
 function isRunningStandalone() {
