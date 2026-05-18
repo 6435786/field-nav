@@ -2270,6 +2270,12 @@ function getAzimuthInfo() {
 
 // ========== SHEET (point details) ==========
 function showPointInSheet(point) {
+  // If switching to a different point, ditch any cached elevation profile that
+  // was computed for the previous one — otherwise loadNavInfo will see stale
+  // data and skip the recompute for the new point.
+  const switched = !state.activePoint ||
+    state.activePoint.lat !== point.lat || state.activePoint.lon !== point.lon;
+  if (switched) clearElevationProfile();
   state.activePoint = point;
   document.getElementById('pointSheet').classList.add('show');
   document.getElementById('sheetBackdrop').classList.add('show');
@@ -2607,7 +2613,9 @@ async function computeElevationProfile() {
       if (typeof elevs[i] === 'number' && elevs[i] > maxElev) { maxElev = elevs[i]; maxIdx = i; }
     }
     const userElev = typeof elevs[0] === 'number' ? elevs[0] : null;
-    lastProfileData = { samples, maxIdx, userElev };
+    // Stamp the cached data with the point it belongs to, so a stale cache
+     // from a previous active point can be detected and discarded
+    lastProfileData = { samples, maxIdx, userElev, forLat: p.lat, forLon: p.lon };
 
     // Update the nav-info row
     const peak = samples[maxIdx];
@@ -2792,16 +2800,36 @@ async function loadNavInfo(lat, lon) {
 
   elevEl.innerHTML = '<span class="spinner"></span>';
 
-  // Elevation profile auto-runs once we have both an active point + user location
-  // (no manual "חשב" button anymore). It won't re-run dynamically on GPS movement —
-  // by user's preference, only fires once until point/location changes.
+  // Elevation profile auto-runs once we have both an active point + user location.
+  // Three cases:
+  //   no user GPS   → "צריך מיקום נוכחי"
+  //   no cached data OR cache is for a different point → spinner + recompute
+  //   cached data is for THIS point → re-render from cache (DOM was rebuilt)
   const navProfileEl = document.getElementById('navProfile');
-  if (hasUser && !lastProfileData) {
-    if (navProfileEl) navProfileEl.innerHTML = '<span class="spinner"></span>';
-    // Fire-and-forget; updates the row + draws line + drops the peak marker
-    computeElevationProfile();
-  } else if (!hasUser && navProfileEl) {
-    navProfileEl.innerHTML = '<span class="muted">צריך מיקום נוכחי</span>';
+  if (!hasUser) {
+    if (navProfileEl) navProfileEl.innerHTML = '<span class="muted">צריך מיקום נוכחי</span>';
+  } else {
+    const cacheValid = lastProfileData &&
+      Math.abs(lastProfileData.forLat - lat) < 1e-7 &&
+      Math.abs(lastProfileData.forLon - lon) < 1e-7;
+    if (!cacheValid) {
+      clearElevationProfile(); // ditch any stale data + old map line/peak marker
+      if (navProfileEl) navProfileEl.innerHTML = '<span class="spinner"></span>';
+      computeElevationProfile();
+    } else if (navProfileEl) {
+      // Re-render result row from cache (in case renderSheet just rebuilt the DOM)
+      const peak = lastProfileData.samples[lastProfileData.maxIdx];
+      const userElev = lastProfileData.userElev;
+      let deltaTxt = '';
+      if (userElev != null && typeof peak.elev === 'number') {
+        const d = Math.round(peak.elev - userElev);
+        const sign = d >= 0 ? '+' : '';
+        const cls = d > 5 ? 'up' : (d < -5 ? 'down' : '');
+        const icon = d > 5 ? '⬆' : (d < -5 ? '⬇' : '➖');
+        deltaTxt = ` <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${d} מ׳ ממך</b></bdi>`;
+      }
+      navProfileEl.innerHTML = `<bdi><b>${Math.round(peak.elev)} מ׳</b></bdi>${deltaTxt} <button class="profile-graph-btn" onclick="showElevationChart()">📊 גרף</button>`;
+    }
   }
 
   if (navInfoAbort) navInfoAbort.abort();
