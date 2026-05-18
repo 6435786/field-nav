@@ -2281,6 +2281,25 @@ function showPointInSheet(point) {
   document.getElementById('sheetBackdrop').classList.add('show');
   document.getElementById('showSheetBtn')?.classList.remove('visible');
   renderSheet();
+  // Auto-fetch the user's current location so all the distance / azimuth /
+  // elevation-delta calculations populate without the user having to tap
+  // "📍 מיקום נוכחי". Skipped when manual location or measure mode is active.
+  autoFetchLocationForActivePoint();
+}
+
+function autoFetchLocationForActivePoint() {
+  if (!state.activePoint) return;
+  if (state.manualLocation) return;    // user already set a manual reference — respect it
+  if (state.measureMode) return;       // measure mode manages its own livePosition (= A)
+  if (state.manualPicking || state.pickingManualLocation) return;
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude, longitude, accuracy } = pos.coords;
+    state.livePosition = { lat: latitude, lon: longitude, accuracy };
+    refreshSheetIfActive();
+  }, () => {
+    // Silent on denial / timeout — nav-info already shows a graceful "צריך מיקום" hint
+  }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
 }
 
 function closeSheet() {
@@ -2420,9 +2439,13 @@ function renderSheet() {
   html += `<div id="qrInline" style="display:none"></div>`;
 
   // Navigation info: elevation at point + delta to user + distance/azimuth from user
+  // When the reference position is a manual one (not GPS), use "ממיקום" instead of "ממך"
+  // so labels read correctly — distance/elevation are measured from the chosen
+  // reference point, not from the user.
+  const fromLbl = state.manualLocation ? 'ממיקום' : 'ממך';
   html += `<div class="nav-info-card">
     <div class="nav-info-row"><span class="nii">⛰️</span><span class="nil">גובה בנקודה:</span><span class="niv" id="navElev"><span class="spinner"></span></span></div>
-    <div class="nav-info-row"><span class="nii">🧭</span><span class="nil">מרחק ואזימוט ממך:</span><span class="niv" id="navDistAz"><span class="muted">—</span></span></div>
+    <div class="nav-info-row"><span class="nii">🧭</span><span class="nil">מרחק ואזימוט ${fromLbl}:</span><span class="niv" id="navDistAz"><span class="muted">—</span></span></div>
     <div class="nav-info-row" id="profileRow"><span class="nii">📈</span><span class="nil">גובה מקס׳ בקו:</span><span class="niv" id="navProfile"><span class="muted">צריך מיקום נוכחי</span></span></div>
   </div>`;
 
@@ -2627,7 +2650,7 @@ async function computeElevationProfile() {
         const sign = deltaToUser >= 0 ? '+' : '';
         const cls = deltaToUser > 5 ? 'up' : (deltaToUser < -5 ? 'down' : '');
         const icon = deltaToUser > 5 ? '⬆' : (deltaToUser < -5 ? '⬇' : '➖');
-        deltaTxt = ` <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${deltaToUser} מ׳ ממך</b></bdi>`;
+        deltaTxt = ` <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${deltaToUser} מ׳ ${state.manualLocation ? 'ממיקום' : 'ממך'}</b></bdi>`;
       }
       navProfile.innerHTML = `<bdi><b>${Math.round(peak.elev)} מ׳</b></bdi>${deltaTxt} <button class="profile-graph-btn" onclick="showElevationChart()">📊 גרף</button>`;
     }
@@ -2826,7 +2849,7 @@ async function loadNavInfo(lat, lon) {
         const sign = d >= 0 ? '+' : '';
         const cls = d > 5 ? 'up' : (d < -5 ? 'down' : '');
         const icon = d > 5 ? '⬆' : (d < -5 ? '⬇' : '➖');
-        deltaTxt = ` <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${d} מ׳ ממך</b></bdi>`;
+        deltaTxt = ` <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${d} מ׳ ${state.manualLocation ? 'ממיקום' : 'ממך'}</b></bdi>`;
       }
       navProfileEl.innerHTML = `<bdi><b>${Math.round(peak.elev)} מ׳</b></bdi>${deltaTxt} <button class="profile-graph-btn" onclick="showElevationChart()">📊 גרף</button>`;
     }
@@ -2851,7 +2874,7 @@ async function loadNavInfo(lat, lon) {
         const sign = delta >= 0 ? '+' : '';
         const cls = delta > 5 ? 'up' : (delta < -5 ? 'down' : '');
         const icon = delta > 5 ? '⬆' : (delta < -5 ? '⬇' : '➖');
-        elevEl.innerHTML = `${main} <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${Math.round(delta)} מ׳ ממך</b></bdi>`;
+        elevEl.innerHTML = `${main} <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${Math.round(delta)} מ׳ ${state.manualLocation ? 'ממיקום' : 'ממך'}</b></bdi>`;
       } else {
         elevEl.innerHTML = main;
       }
