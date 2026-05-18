@@ -2295,6 +2295,14 @@ function autoFetchLocationForActivePoint() {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(pos => {
     const { latitude, longitude, accuracy } = pos.coords;
+    // Skip the refresh if we already had a position and it hasn't moved meaningfully.
+    // Without this guard, every showPointInSheet would re-render the sheet (and fire
+    // another elevation-profile compute) even when GPS just returned a cached fix.
+    if (state.livePosition &&
+        distanceM(state.livePosition.lat, state.livePosition.lon, latitude, longitude) < 5) {
+      state.livePosition = { lat: latitude, lon: longitude, accuracy };
+      return;
+    }
     state.livePosition = { lat: latitude, lon: longitude, accuracy };
     refreshSheetIfActive();
   }, () => {
@@ -2563,27 +2571,35 @@ async function fetchElevations(points, abortSignal) {
     if (all[i] === null || all[i] === undefined) missing.push(i);
   }
   if (!missing.length) return all;
-  // 3) Fetch missing through the Worker, in batches of 100, and write through to cache
+  // 3) Fetch missing through the Worker, in batches of 100, with retries on
+  //    transient 429 / 5xx (OpenTopoData rate-limits us occasionally when
+  //    multiple lookups land at once).
   for (let i = 0; i < missing.length; i += 100) {
     const idxBatch = missing.slice(i, i + 100);
     const batchPoints = idxBatch.map(idx => points[idx]);
     const locStr = batchPoints.map(p => `${p.lat},${p.lon}`).join('|');
-    try {
-      const res = await fetch(`${ELEVATION_ENDPOINT}?locations=${encodeURIComponent(locStr)}`, { signal: abortSignal });
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (!data.results) return null;
-      const toCache = [];
-      for (let j = 0; j < data.results.length; j++) {
-        const elev = typeof data.results[j].elevation === 'number' ? data.results[j].elevation : null;
-        all[idxBatch[j]] = elev;
-        if (elev !== null) toCache.push({ lat: batchPoints[j].lat, lon: batchPoints[j].lon, elev });
+    const url = `${ELEVATION_ENDPOINT}?locations=${encodeURIComponent(locStr)}`;
+    let data = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(url, { signal: abortSignal });
+        if (res.ok) { data = await res.json(); break; }
+        if (res.status !== 429 && res.status < 500) return null; // hard failure, no retry
+        // 429 / 5xx — wait and retry
+      } catch (e) {
+        if (e.name === 'AbortError') throw e;
+        if (attempt === 2) return null;
       }
-      putCachedElevations(toCache); // fire-and-forget
-    } catch (e) {
-      if (e.name === 'AbortError') throw e;
-      return null;
+      await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
     }
+    if (!data || !data.results) return null;
+    const toCache = [];
+    for (let j = 0; j < data.results.length; j++) {
+      const elev = typeof data.results[j].elevation === 'number' ? data.results[j].elevation : null;
+      all[idxBatch[j]] = elev;
+      if (elev !== null) toCache.push({ lat: batchPoints[j].lat, lon: batchPoints[j].lon, elev });
+    }
+    putCachedElevations(toCache); // fire-and-forget
   }
   return all;
 }
@@ -2601,7 +2617,15 @@ function clearElevationProfile() {
   hideElevationChart();
 }
 
+let computeAbort = null;
 async function computeElevationProfile() {
+  // If a previous compute is in flight (different point / older trigger),
+  // cancel it so we don't end up with two parallel 100-point fetches that
+  // can rate-limit each other and surface a spurious error toast.
+  if (computeAbort) { try { computeAbort.abort(); } catch (e) {} }
+  computeAbort = new AbortController();
+  const signal = computeAbort.signal;
+
   const userPos = state.livePosition;
   const p = state.activePoint;
   if (!userPos || !p) {
@@ -2620,7 +2644,8 @@ async function computeElevationProfile() {
   }
 
   try {
-    const elevs = await fetchElevations(samples);
+    const elevs = await fetchElevations(samples, signal);
+    if (signal.aborted) return; // we were superseded — quietly drop
     if (!elevs || elevs.length !== N) {
       const navProfile = document.getElementById('navProfile');
       if (navProfile) navProfile.innerHTML = '<span class="muted error">שגיאה</span>';
@@ -2676,6 +2701,7 @@ async function computeElevationProfile() {
     profilePeakMarker.bindTooltip(`גובה מקס׳: ${peakTooltip}`, { permanent: false, direction: 'top' });
 
   } catch (e) {
+    if (e && e.name === 'AbortError') return; // superseded by a newer compute, silent
     const navProfile = document.getElementById('navProfile');
     if (navProfile) navProfile.innerHTML = '<span class="muted error">שגיאה ברשת</span>';
     toast('שגיאה: ' + (e.message || e), 3500);
@@ -3928,7 +3954,7 @@ window.addEventListener('load', () => {
   handleIncomingLocationParams();
   // If Firebase didn't init or no user yet, show auth modal after a brief moment
   setTimeout(() => {
-    if (!state.user && !state.authSkipped && !location.search.includes('q=')) showAuthModal();
+    if (!state.user && !state.authSkipped && !location.search.includes('q=') && !location.search.includes('share_')) showAuthModal();
   }, 800);
 });
 
@@ -3945,6 +3971,39 @@ function handleIncomingLocationParams() {
   if ((lat === null || lon === null) && params.get('lat') && params.get('lon')) {
     lat = parseFloat(params.get('lat'));
     lon = parseFloat(params.get('lon'));
+  }
+  // Web Share Target: when an installed PWA receives a share from WhatsApp /
+  // any other app, the OS opens us with ?share_text=... &share_url=... per
+  // the manifest's share_target declaration. We feed the combined payload
+  // through the normal input pipeline so the existing URL / Google Maps /
+  // Waze share-text / coord parsers handle it the same way as a paste would.
+  if (lat === null || lon === null) {
+    const shareText = params.get('share_text') || '';
+    const shareUrl = params.get('share_url') || '';
+    const shareTitle = params.get('share_title') || '';
+    const combined = [shareUrl, shareText].filter(Boolean).join(' ').trim();
+    if (combined) {
+      // Clean URL first so a refresh doesn't replay
+      if (history.replaceState) history.replaceState(null, '', location.pathname);
+      // Drop it into the coord input — its existing async handler will detect
+      // coords directly, or fall through to tryExpandUrl for short URLs.
+      setTimeout(() => {
+        const inp = document.getElementById('coordInput');
+        inp.value = combined;
+        inp.dispatchEvent(new Event('input'));
+        // After parse, if the parser extracted a name AND the share had a
+        // title from the sender, prefer the share title (richer).
+        if (shareTitle) {
+          setTimeout(() => {
+            if (state.activePoint && !state.activePoint.isSaved) {
+              state.activePoint.suggestedName = shareTitle;
+            }
+          }, 600);
+        }
+      }, 300);
+      toast('מיקום שותף נטען מ-' + (shareTitle || 'אפליקציה אחרת'), 2500);
+      return;
+    }
   }
   if (lat === null || lon === null || isNaN(lat) || isNaN(lon)) return;
   name = params.get('name') || params.get('label') || null;

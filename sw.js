@@ -1,6 +1,6 @@
 // field-nav service worker — offline shell + cached library code
 // Bump CACHE_VERSION on every release that ships changes to the cached files.
-const CACHE_VERSION = 'v36';
+const CACHE_VERSION = 'v38';
 const SHELL_CACHE = `fieldnav-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `fieldnav-runtime-${CACHE_VERSION}`;
 
@@ -80,7 +80,18 @@ self.addEventListener('fetch', event => {
 
 async function cacheFirst(req, cacheName) {
   const cache = await caches.open(cacheName);
-  const cached = await cache.match(req);
+  // Try exact match first. If miss and this is an HTML navigation (e.g. share-target
+  // brought us to "./?share_text=..."), fall back to the cached shell ignoring the
+  // query string so the PWA still opens offline.
+  let cached = await cache.match(req);
+  if (!cached) {
+    const accept = req.headers.get('Accept') || '';
+    if (accept.includes('text/html') || req.mode === 'navigate') {
+      cached = await cache.match(req, { ignoreSearch: true })
+        || await cache.match('./index.html')
+        || await cache.match('./');
+    }
+  }
   if (cached) return cached;
   try {
     const res = await fetch(req);
