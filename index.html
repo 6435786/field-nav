@@ -274,7 +274,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 
 /* Active (unsaved) marker */
 .active-point-marker{background:none!important;border:none!important}
-.active-pin{width:30px;height:30px;background:#dc2626;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.active-pin{width:22px;height:22px;background:#dc2626;border:2.5px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4)}
 
 /* Profile peak marker */
 .peak-marker{background:none!important;border:none!important;display:flex;align-items:flex-end;justify-content:center}
@@ -2216,7 +2216,7 @@ function setActiveUnsavedPoint(lat, lon, fromMapClick = false, suggestedName = n
     icon: L.divIcon({
       className: 'active-point-marker',
       html: '<div class="active-pin"></div>',
-      iconSize: [30,30], iconAnchor: [15,15]
+      iconSize: [22,22], iconAnchor: [11,11]
     }),
     zIndexOffset: 500
   }).addTo(leafletMap);
