@@ -3541,6 +3541,7 @@ function extractCoordsFromText(text) {
     /[?&]q=loc:(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
     /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
     /[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
+    /[?&]coordinate=(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
     /[?&]daddr=(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
     /[?&]destination=(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
     /[?&]query=(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
@@ -4198,11 +4199,14 @@ function dismissInstallBanner() {
   localStorage.setItem(INSTALL_DISMISSED_KEY, Date.now().toString());
 }
 
-// Show iOS install hint on first visit (since iOS has no beforeinstallprompt)
+// Show iOS install hint on first visit (since iOS has no beforeinstallprompt).
+// On iOS we can't trigger install programmatically — swap the banner text to point
+// at the Safari "share → add to home screen" flow and hide the "התקן" button.
 if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !isRunningStandalone() && !localStorage.getItem(INSTALL_DISMISSED_KEY)) {
-  setTimeout(() => {
-    document.getElementById('installBanner').style.display = 'flex';
-  }, 2500);
+  const banner = document.getElementById('installBanner');
+  banner.querySelector('.install-msg').textContent = 'התקנה כאפליקציה: לחץ שתף ⤴ → "הוסף למסך הבית"';
+  banner.querySelector('.install-btn').style.display = 'none';
+  setTimeout(() => { banner.style.display = 'flex'; }, 2500);
 }
 </script>
 </body>
