@@ -409,10 +409,19 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .nav-info-row .niv .niv-sub .up{color:var(--success);font-weight:800}
 .nav-info-row .niv .niv-sub .down{color:var(--danger);font-weight:800}
 .nav-info-row .niv .muted{color:var(--text-muted);font-family:inherit;font-size:13px;font-weight:500}
-.nav-info-row .profile-graph-btn-inline{grid-column:2;grid-row:2;justify-self:start;background:var(--primary);color:#fff;border:none;padding:4px 12px;border-radius:14px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;align-self:start;margin-top:2px;box-shadow:0 1px 3px rgba(26,86,219,.25)}
+.nav-info-row .profile-graph-btn-inline{grid-column:2;grid-row:2;justify-self:start;background:var(--primary);color:#fff;border:none;padding:6px 15px;border-radius:14px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;align-self:start;margin-top:2px;box-shadow:0 1px 3px rgba(26,86,219,.25)}
 .nav-info-row .profile-graph-btn-inline:hover:not(:disabled){background:var(--primary-dark)}
 .nav-info-row .profile-graph-btn-inline:active:not(:disabled){transform:scale(.95)}
 .nav-info-row .profile-graph-btn-inline:disabled{background:var(--border-strong);color:var(--text-muted);cursor:not-allowed;box-shadow:none;opacity:.7}
+
+/* Share chooser buttons */
+.share-chooser-row{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.share-chooser-btn{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:12px 16px;background:var(--surface2);color:var(--text);border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;cursor:pointer;text-align:right;transition:all .15s}
+.share-chooser-btn:hover{background:var(--primary-light);border-color:var(--primary)}
+.share-chooser-btn:active{transform:scale(.98)}
+.share-chooser-btn .scb-ic{font-size:22px;margin-bottom:2px}
+.share-chooser-btn .scb-main{font-size:15px;font-weight:700;color:var(--text)}
+.share-chooser-btn .scb-sub{font-size:11.5px;font-weight:500;color:var(--text-muted)}
 .elevation-mini .ic{font-size:20px}
 .elevation-mini .val{font-size:15px;font-weight:800;color:var(--text)}
 .elevation-mini .val small{font-size:11px;font-weight:600;color:var(--text-muted)}
@@ -692,6 +701,26 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 </div>
 
 <!-- Conversions popup (WGS84 / ITM / UTM with copy buttons) -->
+<!-- Share chooser: pick which URL kind to share before opening the OS share sheet -->
+<div class="modal" id="shareChooserModal">
+  <div class="modal-content" style="max-width:380px">
+    <button class="modal-close" onclick="closeModal('shareChooserModal')">×</button>
+    <h3>🔗 מה לשתף?</h3>
+    <div class="share-chooser-row">
+      <button class="share-chooser-btn" onclick="doShare('app')">
+        <span class="scb-ic">🚁</span>
+        <span class="scb-main">קישור לאפליקציה</span>
+        <span class="scb-sub">נפתח ב-field-nav עם בוחר אפליקציות מפה</span>
+      </button>
+      <button class="share-chooser-btn" onclick="doShare('gmaps')">
+        <span class="scb-ic">🗺️</span>
+        <span class="scb-main">קישור לגוגל מפות</span>
+        <span class="scb-sub">נפתח ישירות בגוגל מפות / Waze</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="conversionsModal">
   <div class="modal-content">
     <button class="modal-close" onclick="closeModal('conversionsModal')">×</button>
@@ -2997,11 +3026,23 @@ function buildShareableNavUrl(p) {
   return `${base}go.html?${params.toString()}`;
 }
 
-async function shareLink() {
+// Share entry point — open chooser asking which URL flavor to share
+function shareLink() {
+  if (!state.activePoint) return;
+  document.getElementById('shareChooserModal').classList.add('show');
+}
+
+// Actually perform the share once the user picked a URL kind.
+//   'app'   → field-nav go.html landing (opens map-app chooser on Android)
+//   'gmaps' → direct Google Maps URL
+async function doShare(kind) {
   const p = state.activePoint;
-  if (!p) return;
-  const url = buildShareableNavUrl(p);
+  if (!p) { closeModal('shareChooserModal'); return; }
+  const url = kind === 'gmaps'
+    ? `https://www.google.com/maps?q=${p.lat.toFixed(6)},${p.lon.toFixed(6)}`
+    : buildShareableNavUrl(p);
   const text = p.name && p.name !== 'נקודה לא שמורה' ? `📍 ${p.name}` : '📍 מיקום';
+  closeModal('shareChooserModal');
   if (navigator.share) {
     try { await navigator.share({ title: p.name || 'מיקום', text, url }); return; }
     catch (e) { if (e.name === 'AbortError') return; }
