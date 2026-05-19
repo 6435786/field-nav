@@ -334,16 +334,16 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .sheet-backdrop.show{background:rgba(0,0,0,.18);pointer-events:auto}
 .sheet{position:absolute;left:8px;right:8px;bottom:8px;background:#fff;border-radius:18px;box-shadow:0 -4px 22px rgba(0,0,0,.18),0 4px 14px rgba(0,0,0,.12);z-index:700;transform:translateY(120%);transition:transform .25s ease-out;max-height:calc(75vh - 16px);display:flex;flex-direction:column;overflow:hidden}
 .sheet.show{transform:translateY(0)}
-.sheet-handle{width:42px;height:4px;background:var(--border-strong);border-radius:2px;margin:6px auto 2px;flex-shrink:0;cursor:grab}
-.sheet-header{padding:2px 16px 8px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0}
+/* .sheet-handle removed — was a non-functional drag affordance */
+.sheet-header{padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0}
 .sheet-title{flex:1;min-width:0}
 .sheet-name{font-size:17px;font-weight:800;color:var(--text);line-height:1.2;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .sheet-name .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:var(--primary-light);color:var(--primary)}
 .sheet-name .badge.unsaved{background:var(--warn-light);color:var(--warn)}
 /* .sheet-coords removed — coordinates now live in the "📐 קואורדינטות" popup */
-.sheet-close,.sheet-clear{background:var(--surface2);border:none;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-family:inherit;flex-shrink:0;line-height:1}
-.sheet-close{font-size:20px}
-.sheet-close:hover,.sheet-clear:hover{background:var(--border);color:var(--text)}
+.sheet-close{background:var(--surface2);border:2px solid var(--border-strong);width:44px;height:44px;border-radius:50%;font-size:30px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);font-family:inherit;flex-shrink:0;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.sheet-close:hover{background:var(--danger-light);border-color:var(--danger);color:var(--danger)}
+.sheet-close:active{transform:scale(.92)}
 
 .sheet-body{padding:10px 16px 6px;overflow-y:auto;flex:1}
 
@@ -391,7 +391,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .copy-btn.copied{background:var(--success-light);color:var(--success);border-color:var(--success)}
 
 .elevation-mini{display:flex;align-items:center;gap:8px;padding:9px 12px;background:linear-gradient(135deg,var(--info-light) 0%,transparent 100%);border-radius:var(--radius-sm);margin-bottom:10px;border:1px solid #a5f3fc}
-.nav-info-card{background:linear-gradient(135deg,var(--info-light) 0%,var(--surface) 100%);border:1px solid #a5f3fc;border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:10px;display:flex;flex-direction:column;gap:7px}
+.nav-info-card{background:linear-gradient(135deg,var(--info-light) 0%,var(--surface) 100%);border:1px solid #a5f3fc;border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:10px;display:flex;flex-direction:column;gap:9px}
 .profile-btn{background:var(--primary);color:#fff;border:none;padding:5px 11px;border-radius:14px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
 .profile-btn:disabled{background:var(--border-strong);color:var(--text-muted);cursor:not-allowed}
 .profile-btn:hover:not(:disabled){background:var(--primary-dark)}
@@ -400,14 +400,19 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 
 /* Elevation profile chart (rendered inside its modal) */
 .elev-chart-foot{font-size:11px;color:var(--text-muted);text-align:center;font-family:'SF Mono',Consolas,monospace;direction:ltr}
-.nav-info-row{display:flex;align-items:center;gap:9px;font-size:13px;line-height:1.3}
-.nav-info-row .nii{font-size:17px;width:22px;text-align:center;flex-shrink:0}
-.nav-info-row .nil{color:var(--text-muted);font-weight:500;flex-shrink:0;min-width:118px}
-.nav-info-row .niv{flex:1;text-align:left;font-family:'SF Mono',Consolas,monospace;direction:ltr;font-size:13px;color:var(--text)}
-.nav-info-row .niv b{font-size:14.5px;font-weight:800}
-.nav-info-row .niv .muted{color:var(--text-muted);font-family:inherit;font-size:11.5px;font-weight:500}
-.nav-info-row .niv .up{color:var(--success);font-weight:800}
-.nav-info-row .niv .down{color:var(--danger);font-weight:800}
+.nav-info-row{display:grid;grid-template-columns:22px max-content 1fr;align-items:start;gap:4px 10px;font-size:13px;line-height:1.3}
+.nav-info-row .nii{font-size:17px;text-align:center;grid-column:1;grid-row:1;align-self:start;padding-top:1px}
+.nav-info-row .nil{color:var(--text-muted);font-weight:500;grid-column:2;grid-row:1;white-space:nowrap;align-self:start;padding-top:2px}
+.nav-info-row .niv{grid-column:3;grid-row:1 / span 2;text-align:left;font-family:'SF Mono',Consolas,monospace;direction:ltr;font-size:13px;color:var(--text);display:flex;flex-direction:column;gap:2px;align-self:start}
+.nav-info-row .niv .niv-main{font-size:14.5px;font-weight:800;color:var(--text)}
+.nav-info-row .niv .niv-sub{font-size:12.5px;font-weight:600;color:var(--text-muted)}
+.nav-info-row .niv .niv-sub .up{color:var(--success);font-weight:800}
+.nav-info-row .niv .niv-sub .down{color:var(--danger);font-weight:800}
+.nav-info-row .niv .muted{color:var(--text-muted);font-family:inherit;font-size:13px;font-weight:500}
+.nav-info-row .profile-graph-btn-inline{grid-column:2;grid-row:2;justify-self:start;background:var(--primary);color:#fff;border:none;padding:4px 12px;border-radius:14px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;align-self:start;margin-top:2px;box-shadow:0 1px 3px rgba(26,86,219,.25)}
+.nav-info-row .profile-graph-btn-inline:hover:not(:disabled){background:var(--primary-dark)}
+.nav-info-row .profile-graph-btn-inline:active:not(:disabled){transform:scale(.95)}
+.nav-info-row .profile-graph-btn-inline:disabled{background:var(--border-strong);color:var(--text-muted);cursor:not-allowed;box-shadow:none;opacity:.7}
 .elevation-mini .ic{font-size:20px}
 .elevation-mini .val{font-size:15px;font-weight:800;color:var(--text)}
 .elevation-mini .val small{font-size:11px;font-weight:600;color:var(--text-muted)}
@@ -599,7 +604,6 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <!-- Bottom sheet (mobile) / right-panel content (desktop) -->
   <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
   <div class="sheet" id="pointSheet">
-    <div class="sheet-handle"></div>
     <div class="sheet-header">
       <div class="sheet-title">
         <div class="sheet-name" id="sheetName"></div>
@@ -2472,8 +2476,8 @@ function renderSheet() {
   const fromLbl = state.manualLocation ? 'ממיקום' : 'ממך';
   html += `<div class="nav-info-card">
     <div class="nav-info-row"><span class="nii">⛰️</span><span class="nil">גובה בנקודה:</span><span class="niv" id="navElev"><span class="spinner"></span></span></div>
-    <div class="nav-info-row"><span class="nii">🧭</span><span class="nil">מרחק ואזימוט ${fromLbl}:</span><span class="niv" id="navDistAz"><span class="muted">—</span></span></div>
-    <div class="nav-info-row" id="profileRow"><span class="nii">📈</span><span class="nil">גובה מקס׳ בקו:</span><span class="niv" id="navProfile"><span class="muted">צריך מיקום נוכחי</span></span></div>
+    <div class="nav-info-row"><span class="nii">🧭</span><span class="nil">מרחק ואזימוט ${fromLbl}:</span><span class="niv" id="navDistAz"><span class="muted">מחשב...</span></span></div>
+    <div class="nav-info-row" id="profileRow"><span class="nii">📈</span><span class="nil">גובה מקס׳ בקו:</span><button class="profile-graph-btn-inline" onclick="showElevationChart()" disabled>📊 גרף</button><span class="niv" id="navProfile"><span class="muted">מחשב...</span></span></div>
   </div>`;
 
   // (Conversions moved to a popup — "📐 המרות" button in the action row)
@@ -2511,9 +2515,30 @@ function updateNavInfoDynamics() {
   if (!distAzEl) return;
   const userPos = state.livePosition;
   if (!userPos) return;
+  // GPS arrived — cancel any pending "no-signal" fallback timer
+  if (navWaitTimer) { clearTimeout(navWaitTimer); navWaitTimer = null; }
   const d = distanceM(userPos.lat, userPos.lon, state.activePoint.lat, state.activePoint.lon);
   const bear = bearingDeg(userPos.lat, userPos.lon, state.activePoint.lat, state.activePoint.lon);
-  distAzEl.innerHTML = `<b>${fmtDistance(d)}</b> · ${Math.round(bear)}° <span class="muted">(${bearingToCardinal(bear)})</span>`;
+  distAzEl.innerHTML = `<div class="niv-main"><bdi>${fmtDistance(d)}</bdi></div><div class="niv-sub"><bdi>${Math.round(bear)}° (${bearingToCardinal(bear)})</bdi></div>`;
+}
+
+// Fires after a no-GPS grace period: replace "מחשב..." with "אין רשת" in any
+// row that still hasn't received GPS data.
+let navWaitTimer = null;
+function startNavWaitFallback() {
+  if (navWaitTimer) clearTimeout(navWaitTimer);
+  navWaitTimer = setTimeout(() => {
+    navWaitTimer = null;
+    if (state.livePosition) return; // GPS arrived, nothing to do
+    const distAz = document.getElementById('navDistAz');
+    if (distAz && distAz.textContent.includes('מחשב')) {
+      distAz.innerHTML = '<span class="muted">אין רשת</span>';
+    }
+    const prof = document.getElementById('navProfile');
+    if (prof && prof.textContent.includes('מחשב')) {
+      prof.innerHTML = '<span class="muted">אין רשת</span>';
+    }
+  }, 10000);
 }
 
 // Fetch elevations for one or more points using OpenTopoData SRTM 30m (3x finer
@@ -2689,15 +2714,19 @@ async function computeElevationProfile() {
     const navProfile = document.getElementById('navProfile');
     if (navProfile) {
       const deltaToUser = (userElev != null && typeof peak.elev === 'number') ? Math.round(peak.elev - userElev) : null;
-      let deltaTxt = '';
+      const fromLbl = state.manualLocation ? 'ממיקום' : 'ממך';
+      let subHtml = '';
       if (deltaToUser !== null) {
         const sign = deltaToUser >= 0 ? '+' : '';
         const cls = deltaToUser > 5 ? 'up' : (deltaToUser < -5 ? 'down' : '');
         const icon = deltaToUser > 5 ? '⬆' : (deltaToUser < -5 ? '⬇' : '➖');
-        deltaTxt = ` <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${deltaToUser} מ׳ ${state.manualLocation ? 'ממיקום' : 'ממך'}</b></bdi>`;
+        subHtml = `<div class="niv-sub"><bdi><span class="${cls}">${icon} ${sign}${deltaToUser} מ׳ ${fromLbl}</span></bdi></div>`;
       }
-      navProfile.innerHTML = `<bdi><b>${Math.round(peak.elev)} מ׳</b></bdi>${deltaTxt} <button class="profile-graph-btn" onclick="showElevationChart()">📊 גרף</button>`;
+      navProfile.innerHTML = `<div class="niv-main"><bdi>${Math.round(peak.elev)} מ׳</bdi></div>${subHtml}`;
     }
+    // Enable the inline graph button now that we have data
+    const graphBtnDone = document.querySelector('#profileRow .profile-graph-btn-inline');
+    if (graphBtnDone) graphBtnDone.disabled = false;
 
     // Draw line on map
     if (profileLine) leafletMap.removeLayer(profileLine);
@@ -2859,23 +2888,27 @@ async function loadNavInfo(lat, lon) {
   // "·" separator — fixes "מ' מעל פני הים · 703" appearing instead of
   // "703 מ' מעל פני הים · ...".
   if (hasUser) {
+    if (navWaitTimer) { clearTimeout(navWaitTimer); navWaitTimer = null; }
     const d = distanceM(userPos.lat, userPos.lon, lat, lon);
     const bear = bearingDeg(userPos.lat, userPos.lon, lat, lon);
-    distAzEl.innerHTML = `<bdi><b>${fmtDistance(d)}</b></bdi> <span class="muted">·</span> <bdi>${Math.round(bear)}°</bdi> <span class="muted">(${bearingToCardinal(bear)})</span>`;
+    distAzEl.innerHTML = `<div class="niv-main"><bdi>${fmtDistance(d)}</bdi></div><div class="niv-sub"><bdi>${Math.round(bear)}° (${bearingToCardinal(bear)})</bdi></div>`;
   } else {
-    distAzEl.innerHTML = `<span class="muted">לחץ "📍 מיקום נוכחי" כדי לחשב</span>`;
+    // GPS auto-fetches on point select; show progress and fall back to "אין רשת" after 10s
+    distAzEl.innerHTML = `<span class="muted">מחשב...</span>`;
+    startNavWaitFallback();
   }
 
   elevEl.innerHTML = '<span class="spinner"></span>';
 
   // Elevation profile auto-runs once we have both an active point + user location.
-  // Three cases:
-  //   no user GPS   → "צריך מיקום נוכחי"
-  //   no cached data OR cache is for a different point → spinner + recompute
-  //   cached data is for THIS point → re-render from cache (DOM was rebuilt)
+  // No GPS → "מחשב..." (falls back to "אין רשת" via startNavWaitFallback)
+  // No cached data OR cache for a different point → spinner + recompute
+  // Cached data is for THIS point → re-render from cache (DOM was rebuilt)
   const navProfileEl = document.getElementById('navProfile');
+  const graphBtn = document.querySelector('#profileRow .profile-graph-btn-inline');
   if (!hasUser) {
-    if (navProfileEl) navProfileEl.innerHTML = '<span class="muted">צריך מיקום נוכחי</span>';
+    if (navProfileEl) navProfileEl.innerHTML = '<span class="muted">מחשב...</span>';
+    if (graphBtn) graphBtn.disabled = true;
   } else {
     const cacheValid = lastProfileData &&
       Math.abs(lastProfileData.forLat - lat) < 1e-7 &&
@@ -2883,20 +2916,23 @@ async function loadNavInfo(lat, lon) {
     if (!cacheValid) {
       clearElevationProfile(); // ditch any stale data + old map line/peak marker
       if (navProfileEl) navProfileEl.innerHTML = '<span class="spinner"></span>';
+      if (graphBtn) graphBtn.disabled = true;
       computeElevationProfile();
     } else if (navProfileEl) {
       // Re-render result row from cache (in case renderSheet just rebuilt the DOM)
       const peak = lastProfileData.samples[lastProfileData.maxIdx];
       const userElev = lastProfileData.userElev;
-      let deltaTxt = '';
+      const fromLbl = state.manualLocation ? 'ממיקום' : 'ממך';
+      let subHtml = '';
       if (userElev != null && typeof peak.elev === 'number') {
         const d = Math.round(peak.elev - userElev);
         const sign = d >= 0 ? '+' : '';
         const cls = d > 5 ? 'up' : (d < -5 ? 'down' : '');
         const icon = d > 5 ? '⬆' : (d < -5 ? '⬇' : '➖');
-        deltaTxt = ` <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${d} מ׳ ${state.manualLocation ? 'ממיקום' : 'ממך'}</b></bdi>`;
+        subHtml = `<div class="niv-sub"><bdi><span class="${cls}">${icon} ${sign}${d} מ׳ ${fromLbl}</span></bdi></div>`;
       }
-      navProfileEl.innerHTML = `<bdi><b>${Math.round(peak.elev)} מ׳</b></bdi>${deltaTxt} <button class="profile-graph-btn" onclick="showElevationChart()">📊 גרף</button>`;
+      navProfileEl.innerHTML = `<div class="niv-main"><bdi>${Math.round(peak.elev)} מ׳</bdi></div>${subHtml}`;
+      if (graphBtn) graphBtn.disabled = false;
     }
   }
 
@@ -2912,14 +2948,16 @@ async function loadNavInfo(lat, lon) {
     const userElev = hasUser ? arr[1] : null;
 
     if (typeof pointElev === 'number') {
-      // Each "number + Hebrew unit" pair wrapped in <bdi> for correct RTL order
-      const main = `<bdi><b>${Math.round(pointElev)}</b> מ׳ מעל פני הים</bdi>`;
+      // Two-line value: absolute elevation on top, delta from user/manual location below.
+      // Each "number + Hebrew unit" pair wrapped in <bdi> for correct RTL order.
+      const main = `<div class="niv-main"><bdi>${Math.round(pointElev)} מ׳ מעל פני הים</bdi></div>`;
       if (hasUser && typeof userElev === 'number') {
         const delta = pointElev - userElev;
         const sign = delta >= 0 ? '+' : '';
         const cls = delta > 5 ? 'up' : (delta < -5 ? 'down' : '');
         const icon = delta > 5 ? '⬆' : (delta < -5 ? '⬇' : '➖');
-        elevEl.innerHTML = `${main} <span class="muted">·</span> <bdi><b class="${cls}">${icon} ${sign}${Math.round(delta)} מ׳ ${state.manualLocation ? 'ממיקום' : 'ממך'}</b></bdi>`;
+        const fromLbl = state.manualLocation ? 'ממיקום' : 'ממך';
+        elevEl.innerHTML = `${main}<div class="niv-sub"><bdi><span class="${cls}">${icon} ${sign}${Math.round(delta)} מ׳ ${fromLbl}</span></bdi></div>`;
       } else {
         elevEl.innerHTML = main;
       }
