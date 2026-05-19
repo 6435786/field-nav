@@ -734,7 +734,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <div class="modal-content" style="max-width:600px">
     <button class="modal-close" onclick="hideElevationChart()">×</button>
     <h3>📈 פרופיל גובה לאורך הקו</h3>
-    <canvas id="elevChart" style="width:100%;height:240px;display:block;margin-top:8px"></canvas>
+    <canvas id="elevChart" style="width:100%;height:280px;display:block;margin-top:8px"></canvas>
     <div class="elev-chart-foot" id="elevChartFoot" style="margin-top:6px"></div>
   </div>
 </div>
@@ -2797,7 +2797,7 @@ function showElevationChart() {
   requestAnimationFrame(() => {
     const dpr = window.devicePixelRatio || 1;
     const cssW = canvas.clientWidth || 520;
-    const cssH = 240;
+    const cssH = 280;
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
     canvas.style.height = cssH + 'px';
@@ -2812,14 +2812,65 @@ function showElevationChart() {
     const range = Math.max(1, maxE - minE);
     const totalDist = samples[samples.length - 1].distM;
 
-    const padL = 40, padR = 14, padT = 14, padB = 28;
+    const padL = 50, padR = 16, padT = 14, padB = 28;
     const w = cssW - padL - padR;
     const h = cssH - padT - padB;
 
     const x = i => padL + (samples[i].distM / totalDist) * w;
     const y = e => padT + h - ((e - minE) / range) * h;
+    const xAt = distM => padL + (distM / totalDist) * w;
+    const yAt = elev => padT + h - ((elev - minE) / range) * h;
 
-    // Background fill (gradient under curve)
+    // "Nice number" step picker: rounds the raw step (range / target) up to the
+    // closest 1/2/5 × 10^n so gridlines fall on readable values.
+    const niceStep = (rng, target) => {
+      const raw = rng / target;
+      const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+      const norm = raw / mag;
+      const step = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
+      return step * mag;
+    };
+
+    // ===== Grid + axis labels =====
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const gridColor = isDark ? 'rgba(255,255,255,.10)' : 'rgba(15,23,42,.09)';
+    const labelColor = isDark ? 'rgba(226,232,240,.75)' : 'rgba(71,85,105,.85)';
+
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    ctx.fillStyle = labelColor;
+    ctx.font = '10.5px Heebo, sans-serif';
+
+    // Horizontal gridlines (elevation)
+    const yStep = niceStep(range, 5);
+    const yStart = Math.ceil(minE / yStep) * yStep;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let v = yStart; v <= maxE + 0.01; v += yStep) {
+      const py = yAt(v);
+      ctx.beginPath();
+      ctx.moveTo(padL, py);
+      ctx.lineTo(padL + w, py);
+      ctx.stroke();
+      const lbl = yStep >= 1 ? `${Math.round(v)} מ׳` : `${v.toFixed(1)} מ׳`;
+      ctx.fillText(lbl, padL - 5, py);
+    }
+
+    // Vertical gridlines (distance). Skip 0 ("אתה" sits there) and skip a line
+    // that would crowd the right edge.
+    const xStep = niceStep(totalDist, 4);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (let d = xStep; d < totalDist - xStep * 0.35; d += xStep) {
+      const px = xAt(d);
+      ctx.beginPath();
+      ctx.moveTo(px, padT);
+      ctx.lineTo(px, padT + h);
+      ctx.stroke();
+      ctx.fillText(fmtDistance(d), px, padT + h + 4);
+    }
+
+    // ===== Gradient fill under the curve =====
     const grad = ctx.createLinearGradient(0, padT, 0, padT + h);
     grad.addColorStop(0, 'rgba(26,86,219,.35)');
     grad.addColorStop(1, 'rgba(26,86,219,.05)');
@@ -2831,7 +2882,7 @@ function showElevationChart() {
     ctx.closePath();
     ctx.fill();
 
-    // Line
+    // ===== Line =====
     ctx.strokeStyle = '#1a56db';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
@@ -2842,7 +2893,7 @@ function showElevationChart() {
     });
     ctx.stroke();
 
-    // Peak marker
+    // ===== Peak marker =====
     const peakX = x(maxIdx), peakY = y(samples[maxIdx].elev);
     ctx.fillStyle = '#dc2626';
     ctx.beginPath();
@@ -2851,22 +2902,18 @@ function showElevationChart() {
     ctx.font = 'bold 12px Heebo, sans-serif';
     ctx.fillStyle = '#dc2626';
     ctx.textAlign = peakX > cssW / 2 ? 'right' : 'left';
+    ctx.textBaseline = 'alphabetic';
     const peakLbl = (typeof userElev === 'number')
       ? `${Math.round(samples[maxIdx].elev)} מ׳ (${samples[maxIdx].elev - userElev >= 0 ? '+' : ''}${Math.round(samples[maxIdx].elev - userElev)})`
       : `${Math.round(samples[maxIdx].elev)} מ׳`;
     ctx.fillText(peakLbl, peakX + (peakX > cssW / 2 ? -8 : 8), Math.max(14, peakY - 8));
 
-    // Y-axis labels
-    ctx.fillStyle = getComputedStyle(document.body).color || '#64748b';
+    // ===== "אתה" at the start =====
     ctx.font = '11px Heebo, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${Math.round(maxE)} מ׳`, padL - 6, padT + 10);
-    ctx.fillText(`${Math.round(minE)} מ׳`, padL - 6, padT + h);
-
-    // X-axis distance labels
+    ctx.fillStyle = labelColor;
     ctx.textAlign = 'center';
-    ctx.fillText('אתה', padL, padT + h + 16);
-    ctx.fillText(fmtDistance(totalDist), padL + w, padT + h + 16);
+    ctx.textBaseline = 'top';
+    ctx.fillText('אתה', padL, padT + h + 4);
 
     foot.textContent = `${samples.length} דגימות · SRTM 30m · אורך: ${fmtDistance(totalDist)}`;
   });
