@@ -363,10 +363,10 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .btn-primary-big:active{transform:scale(.98)}
 
 /* Secondary action grid */
-.action-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:6px;margin-bottom:12px}
-.action-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:9px 4px;background:var(--surface2);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;text-align:center}
+.action-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(58px,1fr));gap:5px;margin-bottom:10px}
+.action-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:7px 3px;background:var(--surface2);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:10.5px;font-weight:600;cursor:pointer;text-align:center}
 .action-btn:hover{background:var(--border)}
-.action-btn .ic{font-size:18px;line-height:1}
+.action-btn .ic{font-size:16px;line-height:1}
 .action-btn.danger{color:var(--danger)}
 .action-btn.danger:hover{background:var(--danger-light);border-color:var(--danger)}
 .action-btn:disabled{opacity:.4;cursor:not-allowed}
@@ -604,7 +604,6 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
       <div class="sheet-title">
         <div class="sheet-name" id="sheetName"></div>
       </div>
-      <button class="sheet-clear" onclick="clearEverything()" aria-label="נקה" title="נקה הכל">🧹</button>
       <button class="sheet-close" onclick="closeSheet()" aria-label="סגור">×</button>
     </div>
     <div class="sheet-body" id="sheetBody"></div>
@@ -2459,7 +2458,8 @@ function renderSheet() {
   } else {
     html += `<button class="action-btn" onclick="addUnsavedToCollection()" ${state.user ? '' : 'disabled'}><span class="ic">➕</span><span>הוסף</span></button>`;
   }
-  // (נקה moved to the sheet header — small 🧹 icon next to the close X)
+  // נקה — last in DOM = leftmost in RTL flow
+  html += `<button class="action-btn" onclick="clearEverything()"><span class="ic">🧹</span><span>נקה</span></button>`;
   html += `</div>`;
 
   // QR inline placeholder
