@@ -2046,6 +2046,11 @@ function setMeasureA(lat, lon) {
     }),
     zIndexOffset: 800,
   }).addTo(leafletMap);
+  // Once measurement is done, tapping A reopens the A→B sheet instead of starting a new point
+  state.measureMarkerA.on('click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    if (state.measureMode === 'done' && state.activePoint) showPointInSheet(state.activePoint);
+  });
   // A becomes "your position" for the measurement so the normal nav-info path computes A→B
   state.livePosition = { lat, lon, accuracy: null };
   state.measureMode = 'B';
@@ -2067,6 +2072,11 @@ function setMeasureB(lat, lon) {
     }),
     zIndexOffset: 800,
   }).addTo(leafletMap);
+  // Once measurement is done, tapping B reopens the A→B sheet instead of starting a new point
+  state.measureMarkerB.on('click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    if (state.measureMode === 'done' && state.activePoint) showPointInSheet(state.activePoint);
+  });
   // B becomes the active point — triggers the normal sheet flow with A→B calculations
   state.activePoint = {
     lat, lon, isSaved: false,
