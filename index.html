@@ -986,6 +986,7 @@ function skipAuth() {
 
 function updateAuthUI() {
   const zone = document.getElementById('authZone');
+  const addBtn = document.getElementById('addProjectBtn');
   if (state.user) {
     const photo = state.user.photoURL || '';
     const name = (state.user.displayName || state.user.email || '').split(' ')[0];
@@ -995,10 +996,16 @@ function updateAuthUI() {
         <span>${escapeHtml(name)}</span>
         <button class="signout-x" onclick="signOutNow()" title="התנתק">✕</button>
       </div>`;
-    document.getElementById('addProjectBtn').disabled = false;
+    // Project creation is approved-only (tier 3+). Tier-2 ('user') sees the
+    // button disabled with a tooltip instead of hidden — so they know the
+    // feature exists and can ask for access.
+    const canCreate = isApprovedUser();
+    addBtn.disabled = !canCreate;
+    addBtn.title = canCreate ? 'פרוייקט חדש' : 'רק משתמש מורשה יכול ליצור פרוייקטים';
   } else {
     zone.innerHTML = `<button class="btn-signin-small" onclick="signInWithGoogle()">🔑 התחבר</button>`;
-    document.getElementById('addProjectBtn').disabled = true;
+    addBtn.disabled = true;
+    addBtn.title = 'התחבר עם גוגל';
   }
   updateAddPointBtn();
 }
@@ -1343,6 +1350,7 @@ async function confirmAddPoint() {
 
 function openNewProjectModal() {
   if (!state.user) { toast('יש להתחבר עם גוגל'); return; }
+  if (!isApprovedUser()) { toast('רק משתמש מורשה יכול ליצור פרוייקטים', 3500); return; }
   document.getElementById('newProjectName').value = '';
   document.getElementById('newProjectShared').value = '';
   // Default radio back to private
