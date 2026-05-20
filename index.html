@@ -454,7 +454,30 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .edit-user-note{font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.4}
 .edit-user-note.warn{color:var(--warn);font-weight:600}
 /* Edit-user modal opens FROM admin modal — needs higher z-index so it sits on top */
-#editUserModal{z-index:4100}
+#editUserModal,#editGroupModal{z-index:4100}
+/* Form labels + controls inside edit modals */
+.form-label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin:8px 0 4px;text-transform:none;letter-spacing:0}
+.form-control{width:100%;padding:9px 11px;border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;font-weight:500;background:var(--surface2);color:var(--text);box-sizing:border-box;margin-bottom:4px}
+.form-control:focus{outline:none;border-color:var(--primary);background:var(--surface)}
+.form-checkbox{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;padding:6px 0}
+.form-checkbox input{width:16px;height:16px;cursor:pointer;flex-shrink:0}
+.group-checkbox-list{max-height:140px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;background:var(--surface2);font-size:13px}
+.group-checkbox-list .gcl-empty{color:var(--text-muted);font-size:12px;padding:6px 0;text-align:center}
+.group-checkbox-list label{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;color:var(--text)}
+.group-checkbox-list label input{flex-shrink:0}
+/* Groups tab — list of groups with edit/delete actions */
+.group-list{display:flex;flex-direction:column;gap:6px}
+.group-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)}
+.group-row-info{flex:1;min-width:0}
+.group-row-name{font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.group-row-desc{font-size:11.5px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.group-row-actions{display:flex;gap:6px;flex-shrink:0}
+.group-row-actions button{background:none;border:1px solid var(--border-strong);border-radius:6px;padding:4px 9px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--text)}
+.group-row-actions button:hover{background:var(--border)}
+.group-row-actions button.danger{color:var(--danger);border-color:var(--danger-light)}
+.group-row-actions button.danger:hover{background:var(--danger-light)}
+.btn-create-group{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;width:100%;justify-content:center}
+.btn-create-group:hover{background:var(--primary-dark)}
 @media (max-width:600px){
   .admin-content{max-width:100%;width:calc(100% - 12px);max-height:92vh}
   .admin-header{padding:12px 14px}
@@ -750,20 +773,53 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 </div>
 
 <!-- Conversions popup (WGS84 / ITM / UTM with copy buttons) -->
-<!-- Edit user role — opened from a card in the admin panel -->
+<!-- Edit user — opened from a card in the admin panel -->
 <div class="modal" id="editUserModal">
-  <div class="modal-content" style="max-width:400px">
+  <div class="modal-content" style="max-width:440px">
     <button class="modal-close" onclick="closeModal('editUserModal')" aria-label="סגור">×</button>
-    <h3>עריכת תפקיד</h3>
+    <h3>עריכת משתמש</h3>
     <div class="edit-user-header" id="editUserHeader"></div>
+
+    <label class="form-label" for="editUserNameInput">שם תצוגה</label>
+    <input type="text" id="editUserNameInput" class="form-control" placeholder="שם המוצג">
+
+    <label class="form-label" for="editUserPhoneInput">טלפון</label>
+    <input type="tel" id="editUserPhoneInput" class="form-control" placeholder="לדוג: 054-1234567" dir="ltr">
+
     <label class="form-label" for="editUserRoleSelect">תפקיד</label>
-    <select id="editUserRoleSelect" class="form-control">
-      <!-- populated dynamically based on viewer's permissions -->
-    </select>
+    <select id="editUserRoleSelect" class="form-control" onchange="onEditUserRoleChange()"></select>
+
+    <div id="editUserApprovedFields">
+      <label class="form-checkbox" style="margin-top:6px">
+        <input type="checkbox" id="editUserAllowPrivate">
+        <span>אפשר נקודות פרטיות</span>
+      </label>
+
+      <label class="form-label" style="margin-top:10px">קבוצות</label>
+      <div class="group-checkbox-list" id="editUserGroupsList"></div>
+    </div>
+
     <div class="edit-user-note" id="editUserNote"></div>
     <div class="modal-actions" style="margin-top:14px">
       <button class="btn btn-cancel" onclick="closeModal('editUserModal')">ביטול</button>
-      <button class="btn btn-confirm" id="editUserSaveBtn" onclick="saveUserRole()">שמור</button>
+      <button class="btn btn-confirm" id="editUserSaveBtn" onclick="saveUserEdits()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create / edit a group — super_admin only -->
+<div class="modal" id="editGroupModal">
+  <div class="modal-content" style="max-width:380px">
+    <button class="modal-close" onclick="closeModal('editGroupModal')" aria-label="סגור">×</button>
+    <h3 id="editGroupTitle">קבוצה חדשה</h3>
+    <label class="form-label" for="editGroupNameInput">שם הקבוצה</label>
+    <input type="text" id="editGroupNameInput" class="form-control" placeholder="לדוג': יחידת חילוץ מגילות">
+    <label class="form-label" for="editGroupDescInput">תיאור (אופציונלי)</label>
+    <input type="text" id="editGroupDescInput" class="form-control" placeholder="מה מאפיין את הקבוצה">
+    <div class="edit-user-note" id="editGroupNote"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn btn-cancel" onclick="closeModal('editGroupModal')">ביטול</button>
+      <button class="btn btn-confirm" id="editGroupSaveBtn" onclick="saveGroupEdits()">שמור</button>
     </div>
   </div>
 </div>
@@ -1191,6 +1247,9 @@ async function openAdminPanel() {
   if (!isAdminUser()) { toast('אין הרשאה'); return; }
   document.getElementById('adminModal').classList.add('show');
   adminSwitchTab('users');
+  // Load groups in parallel so the edit-user modal already has them cached
+  // when the admin clicks a user card.
+  loadAdminGroups();
   await loadAdminUsers();
 }
 
@@ -1200,6 +1259,7 @@ function adminSwitchTab(tab) {
   });
   document.getElementById('adminUsersTab').style.display  = tab === 'users'  ? 'block' : 'none';
   document.getElementById('adminGroupsTab').style.display = tab === 'groups' ? 'block' : 'none';
+  if (tab === 'groups') loadAdminGroups(); // refresh on tab switch
 }
 
 async function loadAdminUsers() {
@@ -1290,6 +1350,10 @@ function openEditUser(uid) {
       <div class="euh-email">${escapeHtml(u.email || '')}</div>
     </div>`;
 
+  document.getElementById('editUserNameInput').value  = u.displayName || '';
+  document.getElementById('editUserPhoneInput').value = u.phone || '';
+  document.getElementById('editUserAllowPrivate').checked = !!u.allowPrivatePoints;
+
   // Role options visible to the viewer.
   // Super-admin: all 4. Admin: only user/approved.
   const roleOpts = isSuperAdminUser()
@@ -1299,17 +1363,42 @@ function openEditUser(uid) {
   select.innerHTML = roleOpts.map(r =>
     `<option value="${r}" ${r === editingUserOriginalRole ? 'selected' : ''}>${ROLE_LABEL_HE[r]}</option>`
   ).join('');
+
+  renderGroupsCheckboxList(u.groups || []);
+  onEditUserRoleChange();
+
   document.getElementById('editUserNote').textContent = '';
   document.getElementById('editUserNote').className = 'edit-user-note';
-
   document.getElementById('editUserModal').classList.add('show');
 }
 
-async function saveUserRole() {
+// Show "approved+ only" fields (private points, groups) only when the selected role qualifies
+function onEditUserRoleChange() {
+  const role = document.getElementById('editUserRoleSelect').value;
+  const isApprovedRole = role === 'approved' || role === 'admin' || role === 'super_admin';
+  document.getElementById('editUserApprovedFields').style.display = isApprovedRole ? 'block' : 'none';
+}
+
+function renderGroupsCheckboxList(selectedIds) {
+  const wrap = document.getElementById('editUserGroupsList');
+  if (!adminGroupsCache.length) {
+    wrap.innerHTML = `<div class="gcl-empty">אין קבוצות עדיין. ${isSuperAdminUser() ? 'תוכל ליצור בלשונית "קבוצות".' : 'סופר-אדמין יוסיף קבוצות.'}</div>`;
+    return;
+  }
+  const set = new Set(selectedIds);
+  wrap.innerHTML = adminGroupsCache.map(g =>
+    `<label><input type="checkbox" value="${g.id}" ${set.has(g.id) ? 'checked' : ''}> ${escapeHtml(g.name)}</label>`
+  ).join('');
+}
+
+async function saveUserEdits() {
   if (!editingUserUid) return;
-  const newRole = document.getElementById('editUserRoleSelect').value;
+  const newRole       = document.getElementById('editUserRoleSelect').value;
+  const newName       = document.getElementById('editUserNameInput').value.trim();
+  const newPhone      = document.getElementById('editUserPhoneInput').value.trim();
+  const newAllowPriv  = document.getElementById('editUserAllowPrivate').checked;
+  const newGroups     = [...document.querySelectorAll('#editUserGroupsList input:checked')].map(i => i.value);
   const oldRole = editingUserOriginalRole;
-  if (newRole === oldRole) { closeModal('editUserModal'); return; }
 
   // Demotion confirm (admin → lower)
   if (oldRole === 'admin' && newRole !== 'admin' && newRole !== 'super_admin') {
@@ -1320,11 +1409,24 @@ async function saveUserRole() {
   btn.disabled = true;
   btn.textContent = 'שומר...';
   try {
-    await db.collection('nav_user_roles').doc(editingUserUid).update({ role: newRole });
-    toast('התפקיד עודכן ✓');
+    const update = {
+      role: newRole,
+      displayName: newName,
+      phone: newPhone,
+    };
+    // Approved-only fields only stored when the role qualifies, to avoid stale data
+    if (newRole === 'approved' || newRole === 'admin' || newRole === 'super_admin') {
+      update.allowPrivatePoints = newAllowPriv;
+      update.groups = newGroups;
+    } else {
+      update.allowPrivatePoints = false;
+      update.groups = [];
+    }
+    await db.collection('nav_user_roles').doc(editingUserUid).update(update);
+    toast('נשמר ✓');
     closeModal('editUserModal');
     editingUserUid = null;
-    await loadAdminUsers(); // refresh list with new role
+    await loadAdminUsers();
   } catch (e) {
     const note = document.getElementById('editUserNote');
     note.textContent = 'שגיאה בשמירה: ' + (e.message || e);
@@ -1332,6 +1434,108 @@ async function saveUserRole() {
   } finally {
     btn.disabled = false;
     btn.textContent = 'שמור';
+  }
+}
+
+// ========== GROUPS MANAGEMENT (super-admin) ==========
+let adminGroupsCache = [];
+let editingGroupId = null;
+
+async function loadAdminGroups() {
+  if (!db || !isAdminUser()) return;
+  try {
+    const snap = await db.collection('nav_groups').get();
+    adminGroupsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+    renderAdminGroups();
+  } catch (e) {
+    const wrap = document.getElementById('adminGroupsTab');
+    if (wrap) wrap.innerHTML = `<div class="admin-empty">שגיאה בטעינת קבוצות: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+function renderAdminGroups() {
+  const wrap = document.getElementById('adminGroupsTab');
+  const canManage = isSuperAdminUser();
+  const createBtn = canManage
+    ? `<button class="btn-create-group" onclick="openEditGroup()">➕ קבוצה חדשה</button>`
+    : '';
+  if (!adminGroupsCache.length) {
+    wrap.innerHTML = `${createBtn}<div class="admin-empty">${canManage ? 'עדיין אין קבוצות. לחץ "קבוצה חדשה" כדי להתחיל.' : 'סופר-אדמין עוד לא הגדיר קבוצות.'}</div>`;
+    return;
+  }
+  const rows = adminGroupsCache.map(g => {
+    const actions = canManage ? `<div class="group-row-actions">
+        <button onclick="openEditGroup('${g.id}')">ערוך</button>
+        <button class="danger" onclick="deleteGroup('${g.id}')">מחק</button>
+      </div>` : '';
+    return `<div class="group-row">
+      <div class="group-row-info">
+        <div class="group-row-name">${escapeHtml(g.name || '—')}</div>
+        <div class="group-row-desc">${escapeHtml(g.description || '')}</div>
+      </div>
+      ${actions}
+    </div>`;
+  }).join('');
+  wrap.innerHTML = `${createBtn}<div class="group-list">${rows}</div>`;
+}
+
+function openEditGroup(groupId) {
+  if (!isSuperAdminUser()) { toast('רק סופר-אדמין יכול לנהל קבוצות'); return; }
+  editingGroupId = groupId || null;
+  const existing = groupId ? adminGroupsCache.find(g => g.id === groupId) : null;
+  document.getElementById('editGroupTitle').textContent = existing ? 'עריכת קבוצה' : 'קבוצה חדשה';
+  document.getElementById('editGroupNameInput').value = existing?.name || '';
+  document.getElementById('editGroupDescInput').value = existing?.description || '';
+  document.getElementById('editGroupNote').textContent = '';
+  document.getElementById('editGroupNote').className = 'edit-user-note';
+  document.getElementById('editGroupModal').classList.add('show');
+  setTimeout(() => document.getElementById('editGroupNameInput').focus(), 80);
+}
+
+async function saveGroupEdits() {
+  const name = document.getElementById('editGroupNameInput').value.trim();
+  const desc = document.getElementById('editGroupDescInput').value.trim();
+  if (!name) {
+    const n = document.getElementById('editGroupNote');
+    n.textContent = 'שם הקבוצה חובה'; n.className = 'edit-user-note warn';
+    return;
+  }
+  const btn = document.getElementById('editGroupSaveBtn');
+  btn.disabled = true; btn.textContent = 'שומר...';
+  try {
+    if (editingGroupId) {
+      await db.collection('nav_groups').doc(editingGroupId).update({ name, description: desc });
+    } else {
+      await db.collection('nav_groups').add({
+        name, description: desc,
+        createdBy: state.user.uid,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+    toast('נשמר ✓');
+    closeModal('editGroupModal');
+    editingGroupId = null;
+    await loadAdminGroups();
+  } catch (e) {
+    const n = document.getElementById('editGroupNote');
+    n.textContent = 'שגיאה: ' + (e.message || e); n.className = 'edit-user-note warn';
+  } finally {
+    btn.disabled = false; btn.textContent = 'שמור';
+  }
+}
+
+async function deleteGroup(groupId) {
+  if (!isSuperAdminUser()) return;
+  const g = adminGroupsCache.find(x => x.id === groupId);
+  if (!g) return;
+  if (!confirm(`למחוק את הקבוצה "${g.name}"? משתמשים שהיו שייכים אליה לא יושפעו אוטומטית.`)) return;
+  try {
+    await db.collection('nav_groups').doc(groupId).delete();
+    toast('נמחק ✓');
+    await loadAdminGroups();
+  } catch (e) {
+    toast('שגיאה במחיקה: ' + (e.message || e), 3500);
   }
 }
 
@@ -4404,7 +4608,7 @@ function closeOfflineDl() {
 document.getElementById('qrScannerModal').addEventListener('click', (e) => {
   if (e.target.id === 'qrScannerModal') closeScanner();
 });
-['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal','offlineDlModal','conversionsModal','elevChartModal','manualLocationModal','shareChooserModal','adminModal','editUserModal'].forEach(id => {
+['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal','offlineDlModal','conversionsModal','elevChartModal','manualLocationModal','shareChooserModal','adminModal','editUserModal','editGroupModal'].forEach(id => {
   const m = document.getElementById(id);
   m.addEventListener('click', (e) => { if (e.target.id === id && id !== 'authModal') closeModal(id); });
 });
