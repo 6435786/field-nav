@@ -453,6 +453,8 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .edit-user-header .euh-email{font-size:12px;color:var(--text-muted);direction:ltr;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .edit-user-note{font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.4}
 .edit-user-note.warn{color:var(--warn);font-weight:600}
+/* Edit-user modal opens FROM admin modal — needs higher z-index so it sits on top */
+#editUserModal{z-index:4100}
 @media (max-width:600px){
   .admin-content{max-width:100%;width:calc(100% - 12px);max-height:92vh}
   .admin-header{padding:12px 14px}
