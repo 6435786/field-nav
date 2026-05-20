@@ -478,6 +478,9 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .group-row-actions button.danger:hover{background:var(--danger-light)}
 .btn-create-group{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;width:100%;justify-content:center}
 .btn-create-group:hover{background:var(--primary-dark)}
+/* Permission sections in project create/edit modals */
+.perm-section{margin-top:14px;padding:11px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)}
+.perm-section-title{font-size:13.5px;font-weight:800;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px}
 @media (max-width:600px){
   .admin-content{max-width:100%;width:calc(100% - 12px);max-height:92vh}
   .admin-header{padding:12px 14px}
@@ -721,14 +724,26 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <label for="newProjectName">שם הפרוייקט</label>
     <input type="text" id="newProjectName" placeholder="לדוגמה: חיפוש רחפן נחל אוג" maxlength="60">
 
-    <label style="margin-top:14px">פרטיות</label>
-    <div class="vis-options">
-      <label class="vis-opt"><input type="radio" name="newProjectVis" value="private" checked><span><b>🔒 פרטי</b><small>רק אתה והמשתמשים שתשתף איתם</small></span></label>
-      <label class="vis-opt"><input type="radio" name="newProjectVis" value="public"><span><b>🌐 ציבורי</b><small>כל המשתמשים המחוברים לאפליקציה</small></span></label>
+    <label class="form-checkbox" style="margin-top:14px">
+      <input type="checkbox" id="newProjectOpenToAdd">
+      <span>🔓 פתוח להוספת נקודות לכל מחובר עם גוגל</span>
+    </label>
+
+    <div class="perm-section">
+      <div class="perm-section-title">👁 צפייה</div>
+      <label class="form-label">קבוצות עם גישת צפייה</label>
+      <div class="group-checkbox-list" id="newProjectViewerGroups"></div>
+      <label class="form-label" style="margin-top:8px">מיילים נוספים <small style="color:var(--text-muted);font-weight:400">(מופרדים בפסיק)</small></label>
+      <input type="text" id="newProjectViewerEmails" class="form-control" placeholder="אימייל@gmail.com, אימייל2@gmail.com" autocomplete="off" dir="ltr">
     </div>
 
-    <label for="newProjectShared" style="margin-top:14px">שיתוף עם משתמשים נוספים <small style="color:var(--text-muted);font-weight:400">(רלוונטי רק אם פרטי, אופציונלי)</small></label>
-    <input type="text" id="newProjectShared" placeholder="אימייל@gmail.com, אימייל2@gmail.com" autocomplete="off" dir="ltr">
+    <div class="perm-section">
+      <div class="perm-section-title">✎ עריכה והוספה</div>
+      <label class="form-label">קבוצות עם גישת עריכה</label>
+      <div class="group-checkbox-list" id="newProjectEditorGroups"></div>
+      <label class="form-label" style="margin-top:8px">מיילים נוספים</label>
+      <input type="text" id="newProjectEditorEmails" class="form-control" placeholder="אימייל@gmail.com, אימייל2@gmail.com" autocomplete="off" dir="ltr">
+    </div>
 
     <div class="modal-actions">
       <button class="btn btn-cancel" onclick="closeModal('newProjectModal')">ביטול</button>
@@ -885,7 +900,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   </div>
 </div>
 
-<!-- Edit project modal (rename / change visibility / share) -->
+<!-- Edit project modal (admin only — manages name + permissions + delete) -->
 <div class="modal" id="editProjectModal">
   <div class="modal-content">
     <button class="modal-close" onclick="closeModal('editProjectModal')">×</button>
@@ -893,14 +908,26 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <label for="editProjectName">שם</label>
     <input type="text" id="editProjectName" maxlength="60">
 
-    <label style="margin-top:14px">פרטיות</label>
-    <div class="vis-options">
-      <label class="vis-opt"><input type="radio" name="editProjectVis" value="private"><span><b>🔒 פרטי</b><small>רק אתה והמשתמשים שתשתף איתם</small></span></label>
-      <label class="vis-opt"><input type="radio" name="editProjectVis" value="public"><span><b>🌐 ציבורי</b><small>כל המשתמשים המחוברים</small></span></label>
+    <label class="form-checkbox" style="margin-top:14px">
+      <input type="checkbox" id="editProjectOpenToAdd">
+      <span>🔓 פתוח להוספת נקודות לכל מחובר עם גוגל</span>
+    </label>
+
+    <div class="perm-section">
+      <div class="perm-section-title">👁 צפייה</div>
+      <label class="form-label">קבוצות עם גישת צפייה</label>
+      <div class="group-checkbox-list" id="editProjectViewerGroups"></div>
+      <label class="form-label" style="margin-top:8px">מיילים נוספים</label>
+      <input type="text" id="editProjectViewerEmails" class="form-control" autocomplete="off" dir="ltr">
     </div>
 
-    <label for="editProjectShared" style="margin-top:14px">משותף עם <small style="color:var(--text-muted);font-weight:400">(אימיילים מופרדים בפסיק)</small></label>
-    <input type="text" id="editProjectShared" autocomplete="off" dir="ltr">
+    <div class="perm-section">
+      <div class="perm-section-title">✎ עריכה והוספה</div>
+      <label class="form-label">קבוצות עם גישת עריכה</label>
+      <div class="group-checkbox-list" id="editProjectEditorGroups"></div>
+      <label class="form-label" style="margin-top:8px">מיילים נוספים</label>
+      <input type="text" id="editProjectEditorEmails" class="form-control" autocomplete="off" dir="ltr">
+    </div>
 
     <div class="modal-actions">
       <button class="btn btn-danger" onclick="onDeleteProject()" style="margin-left:auto">🗑 מחק פרוייקט</button>
@@ -1030,6 +1057,8 @@ const state = {
   // 'user' | 'approved' | 'admin' | 'super_admin' (null = signed out / pending fetch).
   // Sourced from nav_user_roles/{uid}; the doc is auto-created on first login.
   userRole: null,
+  // The user's group memberships (group IDs). Drives project-access checks.
+  userGroups: [],
   authChecked: false,
   authSkipped: false,
   currentProjectId: '__all',
@@ -1179,16 +1208,21 @@ if (auth) {
     state.user = user;
     state.authChecked = true;
     if (user) {
-      // Pull role from nav_user_roles (create the doc with role:'user' on first login).
-      // Doing this before the project subscriptions means tier-aware UI can render correctly
-      // from the first paint instead of flashing the wrong state.
-      state.userRole = await loadOrCreateUserRole(user);
+      // Pull role + groups from nav_user_roles (create the doc with role:'user' on first login).
+      // Doing this before the project subscriptions means permission-aware UI can render
+      // correctly from the first paint instead of flashing the wrong state.
+      const initial = await loadOrCreateUserRole(user);
+      state.userRole = initial.role;
+      state.userGroups = initial.groups;
       updateAuthUI();
       hideAuthModal();
+      subscribeToMyRoleChanges(user.uid);  // live updates if admin promotes me / adds groups
       subscribeToProjects();
-      subscribeToPoints();
+      // subscribeToPoints will be triggered by the projects subscription's apply()
     } else {
       state.userRole = null;
+      state.userGroups = [];
+      if (myRoleUnsub) { myRoleUnsub(); myRoleUnsub = null; }
       updateAuthUI();
       state.projects = [];
       state.points = [];
@@ -1199,11 +1233,30 @@ if (auth) {
   });
 }
 
+// Live listener on my own role doc — if an admin changes my role or groups,
+// the app picks it up without a refresh, and project visibility re-evaluates.
+let myRoleUnsub = null;
+function subscribeToMyRoleChanges(uid) {
+  if (myRoleUnsub) myRoleUnsub();
+  myRoleUnsub = db.collection('nav_user_roles').doc(uid).onSnapshot(snap => {
+    if (!snap.exists) return;
+    const data = snap.data() || {};
+    const roleChanged   = state.userRole   !== (data.role || 'user');
+    const groupsChanged = JSON.stringify(state.userGroups) !== JSON.stringify(data.groups || []);
+    state.userRole   = data.role || 'user';
+    state.userGroups = data.groups || [];
+    if (roleChanged || groupsChanged) {
+      updateAuthUI();
+      subscribeToProjects(); // permissions might have changed → re-query
+    }
+  }, err => console.warn('myRole listener:', err.message || err));
+}
+
 // ========== USER ROLE / PERMISSIONS ==========
 // Fetch this user's role doc; create it with role:'user' on first ever login.
-// Returns the role string so callers can update state in one step.
+// Returns { role, groups } so callers can update state in one step.
 async function loadOrCreateUserRole(user) {
-  if (!db || !user) return 'user';
+  if (!db || !user) return { role: 'user', groups: [] };
   const ref = db.collection('nav_user_roles').doc(user.uid);
   try {
     const snap = await ref.get();
@@ -1216,7 +1269,7 @@ async function loadOrCreateUserRole(user) {
         email: (user.email || '').toLowerCase(),
         displayName: user.displayName || '',
       }, { merge: true }).catch(() => {});
-      return data.role || 'user';
+      return { role: data.role || 'user', groups: data.groups || [] };
     }
     await ref.set({
       role: 'user',
@@ -1228,12 +1281,45 @@ async function loadOrCreateUserRole(user) {
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    return 'user';
+    return { role: 'user', groups: [] };
   } catch (e) {
     console.warn('loadOrCreateUserRole failed:', e);
-    return 'user'; // graceful — UI just sees them as tier-2
+    return { role: 'user', groups: [] }; // graceful — UI just sees them as tier-2
   }
 }
+
+// ===== Project permission helpers (client-side mirror of Firestore rules) =====
+// Both must match the rules exactly, otherwise the UI promises one thing and
+// the server denies it.
+function canViewProject(p) {
+  if (!p || !state.user) return false;
+  if (isAdminUser()) return true;
+  const myEmail = (state.user.email || '').toLowerCase();
+  if ((p.deniedUsers || []).includes(myEmail)) return false;
+  if (p.openToAdd) return true; // open projects are visible to anyone signed in
+  if ((p.viewerUsers || []).includes(myEmail)) return true;
+  if ((p.editorUsers || []).includes(myEmail)) return true;
+  const myG = state.userGroups || [];
+  if ((p.viewerGroups || []).some(g => myG.includes(g))) return true;
+  if ((p.editorGroups || []).some(g => myG.includes(g))) return true;
+  return false;
+}
+function canEditProjectPoints(p) {
+  if (!p || !state.user) return false;
+  if (isAdminUser()) return true;
+  const myEmail = (state.user.email || '').toLowerCase();
+  if ((p.deniedUsers || []).includes(myEmail)) return false;
+  if ((p.editorUsers || []).includes(myEmail)) return true;
+  const myG = state.userGroups || [];
+  if ((p.editorGroups || []).some(g => myG.includes(g))) return true;
+  return false;
+}
+function canAddPointsToProject(p) {
+  if (canEditProjectPoints(p)) return true;
+  return !!(p?.openToAdd && state.user);
+}
+// Only admin manages project metadata (name, permissions, delete)
+function canManageProject(p) { return isAdminUser(); }
 
 // Tier helpers — all return false when signed out
 function isApprovedUser()  { return ['approved', 'admin', 'super_admin'].includes(state.userRole); }
@@ -1540,20 +1626,31 @@ async function deleteGroup(groupId) {
 }
 
 // ========== FIRESTORE: PROJECTS ==========
-// Visibility model: each project is 'public' (any signed-in user) or 'private'
-// (owner + emails in sharedWithEmails). To match Firestore rules we run several
-// queries in parallel and union the results client-side.
+// Permission model: a project lists viewerUsers / editorUsers (emails) and
+// viewerGroups / editorGroups (group IDs). The user has access if their email
+// or any of their groups appears in those lists. openToAdd grants both view
+// and add to any signed-in user. Admins always see everything.
+// We run several Firestore queries in parallel (each matches one access path)
+// and union the results client-side. deniedUsers is filtered out client-side.
 let projectsUnsubs = [];
 function subscribeToProjects() {
   if (!db) return;
   projectsUnsubs.forEach(u => u()); projectsUnsubs = [];
-  if (!state.user) { state.projects = []; renderProjectSelector(); return; }
+  if (!state.user) { state.projects = []; renderProjectSelector(); subscribeToPoints(); return; }
 
   const docMap = new Map();
+  const myEmail = (state.user.email || '').toLowerCase();
   const apply = () => {
-    state.projects = Array.from(docMap.values()).sort((a, b) =>
+    // Final client-side filter: respect deniedUsers (security rules also enforce this,
+    // but admins do bypass deniedUsers, so we want the UI list to match the rules).
+    const all = Array.from(docMap.values());
+    const filtered = isAdminUser()
+      ? all
+      : all.filter(p => !(p.deniedUsers || []).includes(myEmail));
+    state.projects = filtered.sort((a, b) =>
       (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
     renderProjectSelector();
+    subscribeToPoints(); // accessible-projects list changed → re-target the points listeners
   };
   const handler = snap => {
     snap.docChanges().forEach(c => {
@@ -1563,56 +1660,59 @@ function subscribeToProjects() {
     apply();
   };
   const onErr = label => err => console.warn('projects ' + label + ':', err.message || err);
-  const myEmail = state.user.email?.toLowerCase();
   const col = db.collection('nav_projects');
 
-  projectsUnsubs.push(col.where('visibility', '==', 'public').onSnapshot(handler, onErr('public')));
-  projectsUnsubs.push(col.where('owner', '==', state.user.uid).onSnapshot(handler, onErr('owned')));
-  projectsUnsubs.push(col.where('createdBy', '==', state.user.uid).onSnapshot(handler, onErr('legacy')));
-  if (myEmail) {
-    projectsUnsubs.push(col.where('sharedWithEmails', 'array-contains', myEmail).onSnapshot(handler, onErr('shared')));
+  if (isAdminUser()) {
+    // Admin sees everything — one collection-level listener
+    projectsUnsubs.push(col.onSnapshot(handler, onErr('admin-all')));
+    return;
   }
+  // Non-admin: parallel listeners, one per access path. Firestore unions them
+  // for us through the shared docMap.
+  if (myEmail) {
+    projectsUnsubs.push(col.where('viewerUsers', 'array-contains', myEmail).onSnapshot(handler, onErr('viewer-users')));
+    projectsUnsubs.push(col.where('editorUsers', 'array-contains', myEmail).onSnapshot(handler, onErr('editor-users')));
+  }
+  if (state.userGroups && state.userGroups.length) {
+    // array-contains-any supports up to 10 values — typical user has 1-3 groups
+    const groups = state.userGroups.slice(0, 10);
+    projectsUnsubs.push(col.where('viewerGroups', 'array-contains-any', groups).onSnapshot(handler, onErr('viewer-groups')));
+    projectsUnsubs.push(col.where('editorGroups', 'array-contains-any', groups).onSnapshot(handler, onErr('editor-groups')));
+  }
+  // openToAdd → visible+addable for any signed-in user
+  projectsUnsubs.push(col.where('openToAdd', '==', true).onSnapshot(handler, onErr('open-to-add')));
 }
 
 async function createNewProject() {
   const input = document.getElementById('newProjectName');
   const name = input.value.trim();
   if (!name) { toast('הזן שם פרוייקט'); return; }
-  if (!state.user) { toast('יש להתחבר כדי ליצור פרוייקט'); return; }
-  // Visibility from radio
-  const vis = document.querySelector('input[name="newProjectVis"]:checked')?.value || 'private';
-  // Optional shared emails (parsed from comma-separated input)
-  const sharedRaw = document.getElementById('newProjectShared')?.value || '';
-  const sharedEmails = sharedRaw.split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+  if (!isAdminUser()) { toast('אין הרשאה'); return; }
+
+  const openToAdd = document.getElementById('newProjectOpenToAdd').checked;
+  const viewerGroups = [...document.querySelectorAll('#newProjectViewerGroups input:checked')].map(i => i.value);
+  const editorGroups = [...document.querySelectorAll('#newProjectEditorGroups input:checked')].map(i => i.value);
+  const viewerUsers  = parseEmailList(document.getElementById('newProjectViewerEmails').value);
+  const editorUsers  = parseEmailList(document.getElementById('newProjectEditorEmails').value);
+
   try {
     const ref = await db.collection('nav_projects').add({
       name,
-      owner: state.user.uid,
-      ownerEmail: state.user.email,
-      createdBy: state.user.uid,            // legacy
-      createdByEmail: state.user.email,     // legacy
-      visibility: vis,
-      sharedWithEmails: sharedEmails,       // emails (uids resolved on-write of points)
+      openToAdd,
+      viewerGroups, viewerUsers,
+      editorGroups, editorUsers,
+      deniedUsers: [],
+      createdBy: state.user.uid,
+      createdByEmail: (state.user.email || '').toLowerCase(),
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     state.currentProjectId = ref.id;
     closeModal('newProjectModal');
-    input.value = '';
-    document.getElementById('newProjectShared').value = '';
     toast('פרוייקט נוצר ✓');
-    subscribeToPoints();
+    // subscribeToPoints will fire automatically when the projects subscription picks up the new doc
   } catch (e) {
     toast('שגיאה ביצירת פרוייקט: ' + e.message, 4000);
   }
-}
-
-async function updateProjectVisibility(projectId, visibility, sharedEmails) {
-  if (!db) return;
-  return db.collection('nav_projects').doc(projectId).update({
-    visibility,
-    sharedWithEmails: sharedEmails,
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
 }
 
 async function deleteProjectDoc(projectId) {
@@ -1625,10 +1725,6 @@ async function deleteProjectDoc(projectId) {
   return batch.commit();
 }
 
-function isProjectOwnedByMe(p) {
-  return state.user && (p.owner === state.user.uid || p.createdBy === state.user.uid);
-}
-
 function renderProjectSelector() {
   const sel = document.getElementById('projectSelect');
   const current = state.currentProjectId;
@@ -1636,9 +1732,8 @@ function renderProjectSelector() {
   state.projects.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
-    const visIcon = p.visibility === 'public' ? '🌐' : '🔒';
-    const ownerMark = isProjectOwnedByMe(p) ? '' : ' • משותף';
-    opt.textContent = `${visIcon} ${p.name}${ownerMark}`;
+    const icon = p.openToAdd ? '🔓' : '🔒';
+    opt.textContent = `${icon} ${p.name}`;
     sel.appendChild(opt);
   });
   // Restore selection if still exists
@@ -1648,31 +1743,39 @@ function renderProjectSelector() {
     sel.value = '__all';
     state.currentProjectId = '__all';
   }
-  // Enable edit button only for owned projects
+  // Edit button: only admins, only when a project (not "all") is selected
   const editBtn = document.getElementById('editProjectBtn');
   if (editBtn) {
     const selectedProj = state.projects.find(p => p.id === current);
-    const canEdit = current !== '__all' && selectedProj && isProjectOwnedByMe(selectedProj);
+    const canEdit = current !== '__all' && selectedProj && canManageProject(selectedProj);
     editBtn.disabled = !canEdit;
     editBtn.style.opacity = canEdit ? '1' : '0.4';
   }
-  // Update edit point's project dropdown too
   populateProjectDropdown(document.getElementById('newPointProject'));
   populateProjectDropdown(document.getElementById('editPointProject'));
 }
 
+// Project dropdown for "add point" / "edit point" — only shows projects the
+// user can add to (own edit rights, or openToAdd grants it to any signed-in).
 function populateProjectDropdown(sel) {
   if (!sel) return;
   const current = sel.value;
-  sel.innerHTML = '<option value="">— ללא פרוייקט —</option>';
-  state.projects.forEach(p => {
+  const addable = state.projects.filter(p => canAddPointsToProject(p));
+  if (!addable.length) {
+    sel.innerHTML = '<option value="">— אין פרוייקט שניתן להוסיף אליו —</option>';
+    return;
+  }
+  sel.innerHTML = '';
+  addable.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
     opt.textContent = p.name;
     sel.appendChild(opt);
   });
-  if (current) sel.value = current;
-  else if (state.currentProjectId !== '__all') sel.value = state.currentProjectId;
+  if (current && addable.some(p => p.id === current)) sel.value = current;
+  else if (state.currentProjectId !== '__all' && addable.some(p => p.id === state.currentProjectId)) {
+    sel.value = state.currentProjectId;
+  }
 }
 
 function onProjectChange() {
@@ -1683,11 +1786,21 @@ function onProjectChange() {
 }
 
 // ========== FIRESTORE: POINTS ==========
+// Points inherit project permissions (the security rule looks up the parent
+// project on every operation). To avoid spawning a listener per project we
+// batch projectIds into Firestore IN queries (limit: 10 values per query).
 let pointsUnsubs = [];
 function subscribeToPoints() {
   if (!db) return;
   pointsUnsubs.forEach(u => u()); pointsUnsubs = [];
   if (!state.user) { state.points = []; renderPointsOnMap(); return; }
+
+  // Decide which project IDs to listen to
+  const accessibleIds = state.projects.map(p => p.id);
+  const target = state.currentProjectId === '__all'
+    ? accessibleIds
+    : (accessibleIds.includes(state.currentProjectId) ? [state.currentProjectId] : []);
+  if (!target.length) { state.points = []; renderPointsOnMap(); refreshSheetIfActive(); return; }
 
   const docMap = new Map();
   const apply = () => {
@@ -1704,34 +1817,30 @@ function subscribeToPoints() {
     apply();
   };
   const onErr = label => err => console.warn('points ' + label + ':', err.message || err);
-  const myEmail = state.user.email?.toLowerCase();
   const col = db.collection('nav_points');
-  const projectFilter = q => state.currentProjectId === '__all' ? q : q.where('projectId', '==', state.currentProjectId);
 
-  pointsUnsubs.push(projectFilter(col.where('visibility', '==', 'public')).onSnapshot(handler, onErr('public')));
-  pointsUnsubs.push(projectFilter(col.where('owner', '==', state.user.uid)).onSnapshot(handler, onErr('owned')));
-  pointsUnsubs.push(projectFilter(col.where('createdBy', '==', state.user.uid)).onSnapshot(handler, onErr('legacy')));
-  if (myEmail) {
-    pointsUnsubs.push(projectFilter(col.where('sharedWithEmails', 'array-contains', myEmail)).onSnapshot(handler, onErr('shared')));
+  // Batch projectIds in groups of 10 (Firestore IN max)
+  for (let i = 0; i < target.length; i += 10) {
+    const batch = target.slice(i, i + 10);
+    pointsUnsubs.push(col.where('projectId', 'in', batch).onSnapshot(handler, onErr('batch-' + i)));
   }
 }
 
 async function createPoint({ name, lat, lon, projectId }) {
   if (!state.user) { toast('יש להתחבר כדי לשמור'); return; }
-  // Inherit visibility + sharing from the parent project (denormalized for fast reads)
-  const project = projectId ? state.projects.find(p => p.id === projectId) : null;
-  const visibility = project?.visibility || 'private';
-  const sharedWithEmails = project?.sharedWithEmails || [];
+  if (!projectId) { toast('יש לבחור פרוייקט'); return; }
+  // Permission gated by the parent project — server rules will also enforce
+  const project = state.projects.find(p => p.id === projectId);
+  if (!canAddPointsToProject(project)) {
+    toast('אין הרשאה להוסיף נקודות לפרוייקט זה', 3500);
+    return;
+  }
   return db.collection('nav_points').add({
     name: name.trim(),
     lat, lon,
-    projectId: projectId || null,
-    owner: state.user.uid,
-    ownerEmail: state.user.email,
-    createdBy: state.user.uid,            // legacy
-    createdByEmail: state.user.email,     // legacy
-    visibility,
-    sharedWithEmails,
+    projectId,
+    createdBy: state.user.uid,
+    createdByEmail: (state.user.email || '').toLowerCase(),
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
 }
@@ -1799,31 +1908,59 @@ async function confirmAddPoint() {
   }
 }
 
-function openNewProjectModal() {
+async function openNewProjectModal() {
   if (!state.user) { toast('יש להתחבר עם גוגל'); return; }
-  if (!isApprovedUser()) { toast('רק משתמש מורשה יכול ליצור פרוייקטים', 3500); return; }
+  if (!isAdminUser()) { toast('רק אדמין יכול ליצור פרוייקטים', 3500); return; }
   document.getElementById('newProjectName').value = '';
-  document.getElementById('newProjectShared').value = '';
-  // Default radio back to private
-  const r = document.querySelector('input[name="newProjectVis"][value="private"]');
-  if (r) r.checked = true;
+  document.getElementById('newProjectOpenToAdd').checked = false;
+  document.getElementById('newProjectViewerEmails').value = '';
+  document.getElementById('newProjectEditorEmails').value = '';
+  // Make sure we have an up-to-date groups list for the checkboxes
+  if (!adminGroupsCache.length) await loadAdminGroups();
+  renderProjectGroupCheckboxes('newProjectViewerGroups', []);
+  renderProjectGroupCheckboxes('newProjectEditorGroups', []);
   document.getElementById('newProjectModal').classList.add('show');
   setTimeout(() => document.getElementById('newProjectName').focus(), 50);
 }
 
-function openEditProjectModal() {
+// Renders a checkbox list of all groups into the given container, preselecting
+// the ones in `selectedIds`. Used by both the new-project and edit-project flows.
+function renderProjectGroupCheckboxes(containerId, selectedIds) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+  if (!adminGroupsCache.length) {
+    wrap.innerHTML = `<div class="gcl-empty">אין קבוצות עדיין. הוסף ב"ניהול → קבוצות".</div>`;
+    return;
+  }
+  const set = new Set(selectedIds || []);
+  wrap.innerHTML = adminGroupsCache.map(g =>
+    `<label><input type="checkbox" value="${g.id}" ${set.has(g.id) ? 'checked' : ''}> ${escapeHtml(g.name)}</label>`
+  ).join('');
+}
+
+// Parse a comma/space-separated list of emails into a clean lowercase array
+function parseEmailList(raw) {
+  return (raw || '')
+    .split(/[,;\s]+/)
+    .map(s => s.trim().toLowerCase())
+    .filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+}
+
+async function openEditProjectModal() {
   if (!state.user) { toast('יש להתחבר'); return; }
   const id = state.currentProjectId;
   if (!id || id === '__all') { toast('בחר פרוייקט מהרשימה'); return; }
   const p = state.projects.find(x => x.id === id);
   if (!p) return;
-  if (!isProjectOwnedByMe(p)) { toast('רק היוצר יכול לערוך פרוייקט זה', 3500); return; }
+  if (!canManageProject(p)) { toast('רק אדמין יכול לערוך פרוייקטים', 3500); return; }
   state.editingProjectId = id;
   document.getElementById('editProjectName').value = p.name || '';
-  const vis = p.visibility || 'private';
-  const r = document.querySelector(`input[name="editProjectVis"][value="${vis}"]`);
-  if (r) r.checked = true;
-  document.getElementById('editProjectShared').value = (p.sharedWithEmails || []).join(', ');
+  document.getElementById('editProjectOpenToAdd').checked = !!p.openToAdd;
+  document.getElementById('editProjectViewerEmails').value = (p.viewerUsers || []).join(', ');
+  document.getElementById('editProjectEditorEmails').value = (p.editorUsers || []).join(', ');
+  if (!adminGroupsCache.length) await loadAdminGroups();
+  renderProjectGroupCheckboxes('editProjectViewerGroups', p.viewerGroups || []);
+  renderProjectGroupCheckboxes('editProjectEditorGroups', p.editorGroups || []);
   document.getElementById('editProjectModal').classList.add('show');
 }
 
@@ -1832,21 +1969,18 @@ async function saveProjectEdit() {
   if (!id) return;
   const name = document.getElementById('editProjectName').value.trim();
   if (!name) { toast('שם לא יכול להיות ריק'); return; }
-  const vis = document.querySelector('input[name="editProjectVis"]:checked')?.value || 'private';
-  const sharedRaw = document.getElementById('editProjectShared').value || '';
-  const sharedEmails = sharedRaw.split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+  const openToAdd = document.getElementById('editProjectOpenToAdd').checked;
+  const viewerGroups = [...document.querySelectorAll('#editProjectViewerGroups input:checked')].map(i => i.value);
+  const editorGroups = [...document.querySelectorAll('#editProjectEditorGroups input:checked')].map(i => i.value);
+  const viewerUsers  = parseEmailList(document.getElementById('editProjectViewerEmails').value);
+  const editorUsers  = parseEmailList(document.getElementById('editProjectEditorEmails').value);
   try {
     await db.collection('nav_projects').doc(id).update({
-      name, visibility: vis, sharedWithEmails: sharedEmails,
+      name, openToAdd,
+      viewerGroups, viewerUsers,
+      editorGroups, editorUsers,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
-    // Cascade: update visibility/sharing on all points in this project
-    const snap = await db.collection('nav_points').where('projectId', '==', id).get();
-    if (snap.size) {
-      const batch = db.batch();
-      snap.docs.forEach(d => batch.update(d.ref, { visibility: vis, sharedWithEmails: sharedEmails }));
-      await batch.commit();
-    }
     closeModal('editProjectModal');
     toast('עודכן ✓');
   } catch (e) {
@@ -3005,10 +3139,17 @@ function renderSheet() {
   html += `<button class="action-btn" onclick="toggleInlineQR()"><span class="ic">📱</span><span>QR</span></button>`;
   html += `<button class="action-btn" onclick="openConversionsModal()"><span class="ic">📐</span><span>קואורדינטות</span></button>`;
   if (isSaved) {
-    html += `<button class="action-btn" onclick="openEditPointModal(state.activePoint)"><span class="ic">✎</span><span>ערוך</span></button>`;
-    html += `<button class="action-btn danger" onclick="deletePointFromSheet()"><span class="ic">🗑</span><span>מחק</span></button>`;
+    // Edit/delete only when the viewer has edit rights on the parent project
+    const parentProject = p.projectId ? state.projects.find(x => x.id === p.projectId) : null;
+    const canEdit = canEditProjectPoints(parentProject);
+    if (canEdit) {
+      html += `<button class="action-btn" onclick="openEditPointModal(state.activePoint)"><span class="ic">✎</span><span>ערוך</span></button>`;
+      html += `<button class="action-btn danger" onclick="deletePointFromSheet()"><span class="ic">🗑</span><span>מחק</span></button>`;
+    }
   } else {
-    html += `<button class="action-btn" onclick="addUnsavedToCollection()" ${state.user ? '' : 'disabled'}><span class="ic">➕</span><span>הוסף</span></button>`;
+    // "Add" — disabled when not signed in or no project the user can add to
+    const canAddAnywhere = state.user && state.projects.some(p => canAddPointsToProject(p));
+    html += `<button class="action-btn" onclick="addUnsavedToCollection()" ${canAddAnywhere ? '' : 'disabled'}><span class="ic">➕</span><span>הוסף</span></button>`;
   }
   // נקה — last in DOM = leftmost in RTL flow
   html += `<button class="action-btn" onclick="clearEverything()"><span class="ic">🧹</span><span>נקה</span></button>`;
@@ -3649,6 +3790,10 @@ function addUnsavedToCollection() {
   const p = state.activePoint;
   if (!p || p.isSaved) return;
   if (!state.user) { toast('יש להתחבר עם גוגל כדי לשמור'); return; }
+  if (!state.projects.some(pr => canAddPointsToProject(pr))) {
+    toast('אין פרוייקט שאתה רשאי להוסיף אליו נקודות. בקש מהאדמין הרשאה.', 4500);
+    return;
+  }
   state.pendingCoords = { lat: p.lat, lon: p.lon };
   document.getElementById('addPointCoords').textContent = `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`;
   // Pre-fill with the name extracted from the share text (e.g. Waze/WhatsApp paste).
