@@ -441,6 +441,18 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .admin-user-role-badge.role-admin{background:var(--warn-light);color:var(--warn)}
 .admin-user-role-badge.role-super_admin{background:var(--primary-light);color:var(--primary)}
 .admin-empty{text-align:center;color:var(--text-muted);padding:30px 12px;font-size:13px}
+.admin-user-card.clickable{cursor:pointer;transition:background .15s,border-color .15s}
+.admin-user-card.clickable:hover{background:var(--border);border-color:var(--text-muted)}
+.admin-user-card.self{opacity:.85}
+.admin-user-card.self::after{content:"(את/ה)";font-size:10.5px;color:var(--text-muted);margin-right:6px;flex-shrink:0}
+/* Edit-user modal: identity header + role-change note */
+.edit-user-header{display:flex;align-items:center;gap:12px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin:8px 0 14px}
+.edit-user-header .euh-avatar{width:42px;height:42px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:var(--primary);flex-shrink:0;text-transform:uppercase}
+.edit-user-header .euh-info{flex:1;min-width:0}
+.edit-user-header .euh-name{font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.edit-user-header .euh-email{font-size:12px;color:var(--text-muted);direction:ltr;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.edit-user-note{font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.4}
+.edit-user-note.warn{color:var(--warn);font-weight:600}
 @media (max-width:600px){
   .admin-content{max-width:100%;width:calc(100% - 12px);max-height:92vh}
   .admin-header{padding:12px 14px}
@@ -736,6 +748,24 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 </div>
 
 <!-- Conversions popup (WGS84 / ITM / UTM with copy buttons) -->
+<!-- Edit user role — opened from a card in the admin panel -->
+<div class="modal" id="editUserModal">
+  <div class="modal-content" style="max-width:400px">
+    <button class="modal-close" onclick="closeModal('editUserModal')" aria-label="סגור">×</button>
+    <h3>עריכת תפקיד</h3>
+    <div class="edit-user-header" id="editUserHeader"></div>
+    <label class="form-label" for="editUserRoleSelect">תפקיד</label>
+    <select id="editUserRoleSelect" class="form-control">
+      <!-- populated dynamically based on viewer's permissions -->
+    </select>
+    <div class="edit-user-note" id="editUserNote"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn btn-cancel" onclick="closeModal('editUserModal')">ביטול</button>
+      <button class="btn btn-confirm" id="editUserSaveBtn" onclick="saveUserRole()">שמור</button>
+    </div>
+  </div>
+</div>
+
 <!-- Admin panel — visible only to tier 4+ (admin / super_admin) -->
 <div class="modal" id="adminModal">
   <div class="modal-content admin-content">
@@ -1204,10 +1234,17 @@ function renderAdminUsers() {
     listEl.innerHTML = `<div class="admin-empty">${q ? 'לא נמצאו תוצאות לחיפוש' : 'אין משתמשים רשומים עדיין'}</div>`;
     return;
   }
+  const myUid = state.user?.uid;
   listEl.innerHTML = filtered.map(u => {
     const initials = (u.displayName || u.email || '?').slice(0, 1).toUpperCase();
     const roleLabel = ROLE_LABEL_HE[u.role] || u.role || '—';
-    return `<div class="admin-user-card">
+    const isSelf = u.uid === myUid;
+    const editable = canEditUser(u, isSelf);
+    const classes = ['admin-user-card'];
+    if (editable) classes.push('clickable');
+    if (isSelf) classes.push('self');
+    const onclick = editable ? `onclick="openEditUser('${u.uid}')"` : '';
+    return `<div class="${classes.join(' ')}" ${onclick}>
       <div class="admin-user-avatar">${escapeHtml(initials)}</div>
       <div class="admin-user-info">
         <div class="admin-user-name">${escapeHtml(u.displayName || '—')}</div>
@@ -1216,6 +1253,84 @@ function renderAdminUsers() {
       <span class="admin-user-role-badge role-${u.role || 'user'}">${roleLabel}</span>
     </div>`;
   }).join('');
+}
+
+// Can the CURRENT viewer edit this target user?
+// Rules:
+//   - never yourself (safety: avoid locking yourself out)
+//   - super_admin can edit anyone
+//   - admin can only edit user/approved targets, and cannot promote to admin
+function canEditUser(target, isSelf) {
+  if (isSelf) return false;
+  if (isSuperAdminUser()) return true;
+  if (isAdminUser()) return target.role === 'user' || target.role === 'approved';
+  return false;
+}
+
+// ===== Edit user modal =====
+let editingUserUid = null;
+let editingUserOriginalRole = null;
+
+function openEditUser(uid) {
+  const u = adminUsersCache.find(x => x.uid === uid);
+  if (!u) return;
+  const isSelf = uid === state.user?.uid;
+  if (!canEditUser(u, isSelf)) { toast('אין הרשאה לערוך משתמש זה'); return; }
+
+  editingUserUid = uid;
+  editingUserOriginalRole = u.role || 'user';
+
+  const initials = (u.displayName || u.email || '?').slice(0, 1).toUpperCase();
+  document.getElementById('editUserHeader').innerHTML = `
+    <div class="euh-avatar">${escapeHtml(initials)}</div>
+    <div class="euh-info">
+      <div class="euh-name">${escapeHtml(u.displayName || '—')}</div>
+      <div class="euh-email">${escapeHtml(u.email || '')}</div>
+    </div>`;
+
+  // Role options visible to the viewer.
+  // Super-admin: all 4. Admin: only user/approved.
+  const roleOpts = isSuperAdminUser()
+    ? ['user', 'approved', 'admin', 'super_admin']
+    : ['user', 'approved'];
+  const select = document.getElementById('editUserRoleSelect');
+  select.innerHTML = roleOpts.map(r =>
+    `<option value="${r}" ${r === editingUserOriginalRole ? 'selected' : ''}>${ROLE_LABEL_HE[r]}</option>`
+  ).join('');
+  document.getElementById('editUserNote').textContent = '';
+  document.getElementById('editUserNote').className = 'edit-user-note';
+
+  document.getElementById('editUserModal').classList.add('show');
+}
+
+async function saveUserRole() {
+  if (!editingUserUid) return;
+  const newRole = document.getElementById('editUserRoleSelect').value;
+  const oldRole = editingUserOriginalRole;
+  if (newRole === oldRole) { closeModal('editUserModal'); return; }
+
+  // Demotion confirm (admin → lower)
+  if (oldRole === 'admin' && newRole !== 'admin' && newRole !== 'super_admin') {
+    if (!confirm(`להוריד את האדמין מ-"${ROLE_LABEL_HE[oldRole]}" ל-"${ROLE_LABEL_HE[newRole]}"?`)) return;
+  }
+
+  const btn = document.getElementById('editUserSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'שומר...';
+  try {
+    await db.collection('nav_user_roles').doc(editingUserUid).update({ role: newRole });
+    toast('התפקיד עודכן ✓');
+    closeModal('editUserModal');
+    editingUserUid = null;
+    await loadAdminUsers(); // refresh list with new role
+  } catch (e) {
+    const note = document.getElementById('editUserNote');
+    note.textContent = 'שגיאה בשמירה: ' + (e.message || e);
+    note.className = 'edit-user-note warn';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'שמור';
+  }
 }
 
 // ========== FIRESTORE: PROJECTS ==========
@@ -4287,7 +4402,7 @@ function closeOfflineDl() {
 document.getElementById('qrScannerModal').addEventListener('click', (e) => {
   if (e.target.id === 'qrScannerModal') closeScanner();
 });
-['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal','offlineDlModal','conversionsModal','elevChartModal','manualLocationModal','shareChooserModal','adminModal'].forEach(id => {
+['authModal','newProjectModal','editProjectModal','addPointModal','editPointModal','importPreviewModal','offlineDlModal','conversionsModal','elevChartModal','manualLocationModal','shareChooserModal','adminModal','editUserModal'].forEach(id => {
   const m = document.getElementById(id);
   m.addEventListener('click', (e) => { if (e.target.id === id && id !== 'authModal') closeModal(id); });
 });
