@@ -881,6 +881,9 @@ proj4.defs('EPSG:32636', '+proj=utm +zone=36 +datum=WGS84 +units=m +no_defs');
 // ========== STATE ==========
 const state = {
   user: null,
+  // 'user' | 'approved' | 'admin' | 'super_admin' (null = signed out / pending fetch).
+  // Sourced from nav_user_roles/{uid}; the doc is auto-created on first login.
+  userRole: null,
   authChecked: false,
   authSkipped: false,
   currentProjectId: '__all',
@@ -1013,15 +1016,21 @@ if (auth) {
     }
   });
 
-  auth.onAuthStateChanged(user => {
+  auth.onAuthStateChanged(async user => {
     state.user = user;
     state.authChecked = true;
-    updateAuthUI();
     if (user) {
+      // Pull role from nav_user_roles (create the doc with role:'user' on first login).
+      // Doing this before the project subscriptions means tier-aware UI can render correctly
+      // from the first paint instead of flashing the wrong state.
+      state.userRole = await loadOrCreateUserRole(user);
+      updateAuthUI();
       hideAuthModal();
       subscribeToProjects();
       subscribeToPoints();
     } else {
+      state.userRole = null;
+      updateAuthUI();
       state.projects = [];
       state.points = [];
       renderProjectSelector();
@@ -1030,6 +1039,47 @@ if (auth) {
     }
   });
 }
+
+// ========== USER ROLE / PERMISSIONS ==========
+// Fetch this user's role doc; create it with role:'user' on first ever login.
+// Returns the role string so callers can update state in one step.
+async function loadOrCreateUserRole(user) {
+  if (!db || !user) return 'user';
+  const ref = db.collection('nav_user_roles').doc(user.uid);
+  try {
+    const snap = await ref.get();
+    if (snap.exists) {
+      const data = snap.data() || {};
+      // Best-effort lastSeen refresh — don't block login if this fails (rules
+      // restrict which fields self-update can touch, but lastSeen is allowed).
+      ref.set({
+        lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+        email: (user.email || '').toLowerCase(),
+        displayName: user.displayName || '',
+      }, { merge: true }).catch(() => {});
+      return data.role || 'user';
+    }
+    await ref.set({
+      role: 'user',
+      email: (user.email || '').toLowerCase(),
+      displayName: user.displayName || '',
+      phone: '',
+      groups: [],
+      allowPrivatePoints: false,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return 'user';
+  } catch (e) {
+    console.warn('loadOrCreateUserRole failed:', e);
+    return 'user'; // graceful — UI just sees them as tier-2
+  }
+}
+
+// Tier helpers — all return false when signed out
+function isApprovedUser()  { return ['approved', 'admin', 'super_admin'].includes(state.userRole); }
+function isAdminUser()     { return ['admin', 'super_admin'].includes(state.userRole); }
+function isSuperAdminUser() { return state.userRole === 'super_admin'; }
 
 // ========== FIRESTORE: PROJECTS ==========
 // Visibility model: each project is 'public' (any signed-in user) or 'private'
