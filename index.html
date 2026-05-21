@@ -1664,26 +1664,23 @@ let projectsUnsubs = [];
 function subscribeToProjects() {
   if (!db) return;
   projectsUnsubs.forEach(u => u()); projectsUnsubs = [];
-  // Reset projects immediately on every re-subscribe so a stale admin-level
-  // list doesn't linger while the new (possibly narrower) listeners attach.
-  // The new listeners' initial snapshots will repopulate within milliseconds.
   state.projects = [];
   renderProjectSelector();
   if (!state.user) { subscribeToPoints(); return; }
 
+  // Strategy: single unfiltered listener, filtered client-side via canViewProject.
+  // Firestore's rule engine struggles to evaluate `myGroups().hasAny()` (cross-doc
+  // get) inside list-query permission checks, so we let the rule pass for any
+  // signed-in user (project METADATA is visible to anyone in the org) and rely
+  // on canViewProject for what the UI actually shows. nav_points stays strictly
+  // gated through the parent-project lookup in its rule.
   const docMap = new Map();
-  const myEmail = (state.user.email || '').toLowerCase();
   const apply = () => {
-    // Final client-side filter: respect deniedUsers (security rules also enforce this,
-    // but admins do bypass deniedUsers, so we want the UI list to match the rules).
     const all = Array.from(docMap.values());
-    const filtered = isAdminUser()
-      ? all
-      : all.filter(p => !(p.deniedUsers || []).includes(myEmail));
-    state.projects = filtered.sort((a, b) =>
-      (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+    state.projects = all.filter(p => canViewProject(p))
+      .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
     renderProjectSelector();
-    subscribeToPoints(); // accessible-projects list changed → re-target the points listeners
+    subscribeToPoints();
   };
   const handler = snap => {
     snap.docChanges().forEach(c => {
@@ -1692,30 +1689,9 @@ function subscribeToProjects() {
     });
     apply();
   };
-  const onErr = label => err => console.warn('projects ' + label + ':', err.message || err);
-  const col = db.collection('nav_projects');
-
-  if (isAdminUser()) {
-    // Admin sees everything — one collection-level listener
-    projectsUnsubs.push(col.onSnapshot(handler, onErr('admin-all')));
-    return;
-  }
-  // Non-admin: parallel listeners, one per access path. Firestore unions them
-  // for us through the shared docMap.
-  if (myEmail) {
-    projectsUnsubs.push(col.where('viewerUsers', 'array-contains', myEmail).onSnapshot(handler, onErr('viewer-users')));
-    projectsUnsubs.push(col.where('editorUsers', 'array-contains', myEmail).onSnapshot(handler, onErr('editor-users')));
-  }
-  // Group queries — one array-contains listener per group (was: a single
-  // array-contains-any). The static verifier in Firestore rules behaves more
-  // reliably with array-contains than array-contains-any when the rule's
-  // condition also evaluates a dynamic list intersection.
-  (state.userGroups || []).slice(0, 10).forEach((g, i) => {
-    projectsUnsubs.push(col.where('viewerGroups', 'array-contains', g).onSnapshot(handler, onErr('viewer-group-' + i)));
-    projectsUnsubs.push(col.where('editorGroups', 'array-contains', g).onSnapshot(handler, onErr('editor-group-' + i)));
-  });
-  // openToAdd → visible+addable for any signed-in user
-  projectsUnsubs.push(col.where('openToAdd', '==', true).onSnapshot(handler, onErr('open-to-add')));
+  projectsUnsubs.push(
+    db.collection('nav_projects').onSnapshot(handler, err => console.warn('projects:', err.message || err))
+  );
 }
 
 async function createNewProject() {
