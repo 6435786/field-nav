@@ -1635,7 +1635,12 @@ let projectsUnsubs = [];
 function subscribeToProjects() {
   if (!db) return;
   projectsUnsubs.forEach(u => u()); projectsUnsubs = [];
-  if (!state.user) { state.projects = []; renderProjectSelector(); subscribeToPoints(); return; }
+  // Reset projects immediately on every re-subscribe so a stale admin-level
+  // list doesn't linger while the new (possibly narrower) listeners attach.
+  // The new listeners' initial snapshots will repopulate within milliseconds.
+  state.projects = [];
+  renderProjectSelector();
+  if (!state.user) { subscribeToPoints(); return; }
 
   const docMap = new Map();
   const myEmail = (state.user.email || '').toLowerCase();
