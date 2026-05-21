@@ -1177,12 +1177,11 @@ function updateAuthUI() {
         <button class="signout-x" onclick="signOutNow()" title="התנתק">✕</button>
       </div>
       ${adminBtnHtml}`;
-    // Project creation is approved-only (tier 3+). Tier-2 ('user') sees the
-    // button disabled with a tooltip instead of hidden — so they know the
-    // feature exists and can ask for access.
-    const canCreate = isApprovedUser();
+    // Project creation is admin-only. Non-admins see the button disabled with
+    // a tooltip instead of hidden — so they know the feature exists.
+    const canCreate = isAdminUser();
     addBtn.disabled = !canCreate;
-    addBtn.title = canCreate ? 'פרוייקט חדש' : 'רק משתמש מורשה יכול ליצור פרוייקטים';
+    addBtn.title = canCreate ? 'פרוייקט חדש' : 'אין הרשאה לפתיחת פרוייקט';
   } else {
     zone.innerHTML = `<button class="btn-signin-small" onclick="signInWithGoogle()">🔑 התחבר</button>`;
     addBtn.disabled = true;
@@ -1910,7 +1909,7 @@ async function confirmAddPoint() {
 
 async function openNewProjectModal() {
   if (!state.user) { toast('יש להתחבר עם גוגל'); return; }
-  if (!isAdminUser()) { toast('רק אדמין יכול ליצור פרוייקטים', 3500); return; }
+  if (!isAdminUser()) { toast('אין הרשאה לפתיחת פרוייקט', 3500); return; }
   document.getElementById('newProjectName').value = '';
   document.getElementById('newProjectOpenToAdd').checked = false;
   document.getElementById('newProjectViewerEmails').value = '';
