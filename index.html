@@ -1706,12 +1706,14 @@ function subscribeToProjects() {
     projectsUnsubs.push(col.where('viewerUsers', 'array-contains', myEmail).onSnapshot(handler, onErr('viewer-users')));
     projectsUnsubs.push(col.where('editorUsers', 'array-contains', myEmail).onSnapshot(handler, onErr('editor-users')));
   }
-  if (state.userGroups && state.userGroups.length) {
-    // array-contains-any supports up to 10 values — typical user has 1-3 groups
-    const groups = state.userGroups.slice(0, 10);
-    projectsUnsubs.push(col.where('viewerGroups', 'array-contains-any', groups).onSnapshot(handler, onErr('viewer-groups')));
-    projectsUnsubs.push(col.where('editorGroups', 'array-contains-any', groups).onSnapshot(handler, onErr('editor-groups')));
-  }
+  // Group queries — one array-contains listener per group (was: a single
+  // array-contains-any). The static verifier in Firestore rules behaves more
+  // reliably with array-contains than array-contains-any when the rule's
+  // condition also evaluates a dynamic list intersection.
+  (state.userGroups || []).slice(0, 10).forEach((g, i) => {
+    projectsUnsubs.push(col.where('viewerGroups', 'array-contains', g).onSnapshot(handler, onErr('viewer-group-' + i)));
+    projectsUnsubs.push(col.where('editorGroups', 'array-contains', g).onSnapshot(handler, onErr('editor-group-' + i)));
+  });
   // openToAdd → visible+addable for any signed-in user
   projectsUnsubs.push(col.where('openToAdd', '==', true).onSnapshot(handler, onErr('open-to-add')));
 }
