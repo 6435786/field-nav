@@ -1216,12 +1216,14 @@ if (auth) {
       updateAuthUI();
       hideAuthModal();
       subscribeToMyRoleChanges(user.uid);  // live updates if admin promotes me / adds groups
+      subscribeToProjectSignal();          // live updates for project permission changes
       subscribeToProjects();
       // subscribeToPoints will be triggered by the projects subscription's apply()
     } else {
       state.userRole = null;
       state.userGroups = [];
       if (myRoleUnsub) { myRoleUnsub(); myRoleUnsub = null; }
+      if (projectSignalUnsub) { projectSignalUnsub(); projectSignalUnsub = null; }
       updateAuthUI();
       state.projects = [];
       state.points = [];
@@ -1230,6 +1232,33 @@ if (auth) {
       if (!state.authSkipped) showAuthModal();
     }
   });
+}
+
+// Live listener on the projects "broadcast" doc. Firestore silently invalidates
+// per-user project listeners when the new state of a doc fails the rule
+// (e.g. an admin removed a user's group access). To work around this, every
+// project create/update/delete touches nav_meta/projects_signal, and all
+// signed-in users react by re-running subscribeToProjects.
+let projectSignalUnsub = null;
+let projectSignalSeen = false;
+function subscribeToProjectSignal() {
+  if (!db) return;
+  if (projectSignalUnsub) projectSignalUnsub();
+  projectSignalSeen = false;
+  projectSignalUnsub = db.collection('nav_meta').doc('projects_signal').onSnapshot(snap => {
+    // Ignore the very first snapshot (it's the initial state, not a real "change")
+    if (!projectSignalSeen) { projectSignalSeen = true; return; }
+    subscribeToProjects();
+  }, err => console.warn('project signal:', err.message || err));
+}
+// Touch the broadcast doc — admins call this after every project mutation.
+async function notifyProjectChange() {
+  if (!db) return;
+  try {
+    await db.collection('nav_meta').doc('projects_signal').set({
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  } catch (e) { console.warn('notifyProjectChange failed:', e); }
 }
 
 // Live listener on my own role doc — if an admin changes my role or groups,
@@ -1713,6 +1742,7 @@ async function createNewProject() {
     state.currentProjectId = ref.id;
     closeModal('newProjectModal');
     toast('פרוייקט נוצר ✓');
+    notifyProjectChange();
     // subscribeToPoints will fire automatically when the projects subscription picks up the new doc
   } catch (e) {
     toast('שגיאה ביצירת פרוייקט: ' + e.message, 4000);
@@ -1987,6 +2017,7 @@ async function saveProjectEdit() {
     });
     closeModal('editProjectModal');
     toast('עודכן ✓');
+    notifyProjectChange();
   } catch (e) {
     toast('שגיאה: ' + e.message, 4500);
   }
@@ -2009,6 +2040,7 @@ async function onDeleteProject() {
     closeModal('editProjectModal');
     toast('נמחק ✓');
     subscribeToPoints();
+    notifyProjectChange();
   } catch (e) {
     toast('שגיאה במחיקה: ' + e.message, 4500);
   }
