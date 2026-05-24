@@ -478,6 +478,18 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .group-row-actions button.danger:hover{background:var(--danger-light)}
 .btn-create-group{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;width:100%;justify-content:center}
 .btn-create-group:hover{background:var(--primary-dark)}
+/* Group → projects list inside edit-group modal */
+.group-project-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.group-project-row{display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)}
+.group-project-row .gp-name{flex:1;font-size:13.5px;font-weight:700;color:var(--text);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.group-project-row .gp-level{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:10px;flex-shrink:0;cursor:pointer;border:none;font-family:inherit}
+.group-project-row .gp-level.view{background:var(--surface);color:var(--text-muted);border:1px solid var(--border-strong)}
+.group-project-row .gp-level.edit{background:var(--primary-light);color:var(--primary)}
+.group-project-row .gp-level:hover{filter:brightness(.95)}
+.group-project-row .gp-remove{background:rgba(220,38,38,.12);color:var(--danger);border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1;padding:0;font-family:inherit;flex-shrink:0}
+.group-project-row .gp-remove:hover{background:var(--danger);color:#fff}
+.group-project-add{padding:9px 11px;background:var(--surface);border:1.5px dashed var(--border-strong);border-radius:var(--radius-sm);text-align:center;font-size:12.5px;color:var(--text-muted);cursor:pointer}
+.group-project-add:hover{border-color:var(--primary);color:var(--primary)}
 /* Permission sections in project create/edit modals */
 .perm-section{margin-top:14px;padding:11px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm)}
 .perm-section.danger{background:rgba(220,38,38,.04);border-color:rgba(220,38,38,.25)}
@@ -853,17 +865,38 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   </div>
 </div>
 
-<!-- Create / edit a group — super_admin only -->
+<!-- Create / edit a group — super_admin only. Three tabs: General / Members / Projects -->
 <div class="modal" id="editGroupModal">
-  <div class="modal-content" style="max-width:380px">
-    <button class="modal-close" onclick="closeModal('editGroupModal')" aria-label="סגור">×</button>
-    <h3 id="editGroupTitle">קבוצה חדשה</h3>
-    <label class="form-label" for="editGroupNameInput">שם הקבוצה</label>
-    <input type="text" id="editGroupNameInput" class="form-control" placeholder="לדוג': יחידת חילוץ מגילות">
-    <label class="form-label" for="editGroupDescInput">תיאור (אופציונלי)</label>
-    <input type="text" id="editGroupDescInput" class="form-control" placeholder="מה מאפיין את הקבוצה">
-    <div class="edit-user-note" id="editGroupNote"></div>
-    <div class="modal-actions" style="margin-top:14px">
+  <div class="modal-content" style="max-width:480px;padding:0;overflow:hidden;display:flex;flex-direction:column">
+    <div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+      <h3 id="editGroupTitle" style="margin:0">קבוצה חדשה</h3>
+      <button class="modal-close" onclick="closeModal('editGroupModal')" aria-label="סגור" style="position:static">×</button>
+    </div>
+    <div class="admin-tabs" id="editGroupTabs">
+      <button class="admin-tab active" data-tab="general" onclick="editGroupSwitchTab('general')">כללי</button>
+      <button class="admin-tab" data-tab="members" onclick="editGroupSwitchTab('members')">חברים</button>
+      <button class="admin-tab" data-tab="projects" onclick="editGroupSwitchTab('projects')">פרוייקטים</button>
+    </div>
+    <div style="padding:14px 18px;overflow-y:auto;max-height:60vh">
+      <div id="editGroupTabGeneral">
+        <label class="form-label" for="editGroupNameInput">שם הקבוצה</label>
+        <input type="text" id="editGroupNameInput" class="form-control" placeholder="לדוג': יחידת חילוץ מגילות">
+        <label class="form-label" for="editGroupDescInput" style="margin-top:10px">תיאור (אופציונלי)</label>
+        <input type="text" id="editGroupDescInput" class="form-control" placeholder="מה מאפיין את הקבוצה">
+      </div>
+      <div id="editGroupTabMembers" style="display:none">
+        <label class="form-label">חברי הקבוצה</label>
+        <div class="multi-picker" id="editGroupMembersPicker"></div>
+        <div class="edit-user-note">הוסף/הסר משתמשים — השינוי משפיע על ההרשאות שלהם דרך הקבוצה.</div>
+      </div>
+      <div id="editGroupTabProjects" style="display:none">
+        <label class="form-label">פרוייקטים שהקבוצה רשומה בהם</label>
+        <div id="editGroupProjectsList" class="group-project-list"></div>
+        <div class="edit-user-note">לחץ על שורה כדי להחליף דרגה (צפייה ↔ עריכה) או להסיר.</div>
+      </div>
+    </div>
+    <div class="edit-user-note" id="editGroupNote" style="padding:0 18px"></div>
+    <div class="modal-actions" style="padding:12px 18px;border-top:1px solid var(--border);margin:0">
       <button class="btn btn-cancel" onclick="closeModal('editGroupModal')">ביטול</button>
       <button class="btn btn-confirm" id="editGroupSaveBtn" onclick="saveGroupEdits()">שמור</button>
     </div>
@@ -1630,7 +1663,20 @@ function renderAdminGroups() {
   wrap.innerHTML = `${createBtn}<div class="group-list">${rows}</div>`;
 }
 
-function openEditGroup(groupId) {
+// ----- Edit group: tabs (general / members / projects) -----
+// Tracks the changes pending save so we can diff and write efficiently.
+let editingGroupState = null;
+let editGroupMembersPicker = null;
+
+function editGroupSwitchTab(tab) {
+  document.querySelectorAll('#editGroupTabs .admin-tab').forEach(el =>
+    el.classList.toggle('active', el.dataset.tab === tab));
+  document.getElementById('editGroupTabGeneral').style.display  = tab === 'general'  ? 'block' : 'none';
+  document.getElementById('editGroupTabMembers').style.display  = tab === 'members'  ? 'block' : 'none';
+  document.getElementById('editGroupTabProjects').style.display = tab === 'projects' ? 'block' : 'none';
+}
+
+async function openEditGroup(groupId) {
   if (!isSuperAdminUser()) { toast('רק סופר-אדמין יכול לנהל קבוצות'); return; }
   editingGroupId = groupId || null;
   const existing = groupId ? adminGroupsCache.find(g => g.id === groupId) : null;
@@ -1639,8 +1685,101 @@ function openEditGroup(groupId) {
   document.getElementById('editGroupDescInput').value = existing?.description || '';
   document.getElementById('editGroupNote').textContent = '';
   document.getElementById('editGroupNote').className = 'edit-user-note';
+  editGroupSwitchTab('general');
+
+  // Members + Projects only make sense for an existing group
+  if (existing) {
+    // Make sure caches are warm
+    if (!adminUsersCache.length) await loadAdminUsers();
+    // Members of THIS group = users whose groups[] contains the groupId
+    const memberUids = adminUsersCache.filter(u => (u.groups || []).includes(groupId)).map(u => u.uid);
+    editingGroupState = {
+      origMembers: new Set(memberUids),
+      origProjects: new Map(),
+    };
+    // Projects this group has access to → map projectId → 'view' | 'edit'
+    state.projects.forEach(p => {
+      const inEditor = (p.editorGroups || []).includes(groupId);
+      const inViewer = (p.viewerGroups || []).includes(groupId);
+      if (inEditor || inViewer) {
+        editingGroupState.origProjects.set(p.id, inEditor ? 'edit' : 'view');
+      }
+    });
+    editingGroupState.members  = new Set(editingGroupState.origMembers);
+    editingGroupState.projects = new Map(editingGroupState.origProjects);
+
+    const memberOpts = adminUsersCache.map(u => ({
+      value: u.uid,
+      label: u.displayName || u.email || '—',
+      sublabel: u.email || '',
+    }));
+    editGroupMembersPicker = setupMultiPicker({
+      pickerEl: document.getElementById('editGroupMembersPicker'),
+      initialValues: memberUids,
+      options: memberOpts,
+      placeholder: 'חפש משתמש להוסיף לקבוצה...',
+      allowCustom: false,
+      onChange: (newValues) => { editingGroupState.members = new Set(newValues); },
+    });
+    renderEditGroupProjects();
+  } else {
+    editingGroupState = null;
+    editGroupMembersPicker = null;
+  }
+  // Disable Members/Projects tabs for brand-new groups (no ID yet)
+  document.querySelectorAll('#editGroupTabs .admin-tab').forEach(el => {
+    if (el.dataset.tab !== 'general') {
+      el.disabled = !existing;
+      el.style.opacity = existing ? '1' : '0.4';
+      el.style.cursor = existing ? 'pointer' : 'not-allowed';
+    }
+  });
+
   document.getElementById('editGroupModal').classList.add('show');
   setTimeout(() => document.getElementById('editGroupNameInput').focus(), 80);
+}
+
+function renderEditGroupProjects() {
+  const wrap = document.getElementById('editGroupProjectsList');
+  if (!editingGroupState) { wrap.innerHTML = ''; return; }
+  const rows = [];
+  editingGroupState.projects.forEach((level, pid) => {
+    const p = state.projects.find(x => x.id === pid);
+    if (!p) return;
+    const levelLabel = level === 'edit' ? '✎ עריכה' : '👁 צפייה';
+    rows.push(`<div class="group-project-row" data-pid="${pid}">
+      <span class="gp-name">${escapeHtml(p.name)}</span>
+      <button class="gp-level ${level}" onclick="toggleGroupProjectLevel('${pid}')">${levelLabel}</button>
+      <button class="gp-remove" onclick="removeGroupProject('${pid}')" title="הסר">×</button>
+    </div>`);
+  });
+  // Add row at end with dropdown of unassigned projects
+  const assigned = new Set(editingGroupState.projects.keys());
+  const unassigned = state.projects.filter(p => !assigned.has(p.id));
+  const addRow = unassigned.length
+    ? `<select id="editGroupAddProjectSelect" class="form-control" onchange="addGroupProject(this.value)" style="margin-top:6px">
+        <option value="">+ הוסף פרוייקט...</option>
+        ${unassigned.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+      </select>`
+    : `<div class="edit-user-note" style="margin-top:6px">הקבוצה רשומה בכל הפרוייקטים הקיימים.</div>`;
+  wrap.innerHTML = (rows.length ? rows.join('') : '<div class="edit-user-note">הקבוצה עדיין לא רשומה באף פרוייקט.</div>') + addRow;
+}
+
+function toggleGroupProjectLevel(projectId) {
+  if (!editingGroupState) return;
+  const cur = editingGroupState.projects.get(projectId);
+  editingGroupState.projects.set(projectId, cur === 'edit' ? 'view' : 'edit');
+  renderEditGroupProjects();
+}
+function removeGroupProject(projectId) {
+  if (!editingGroupState) return;
+  editingGroupState.projects.delete(projectId);
+  renderEditGroupProjects();
+}
+function addGroupProject(projectId) {
+  if (!projectId || !editingGroupState) return;
+  editingGroupState.projects.set(projectId, 'view'); // default view; admin toggles to edit if needed
+  renderEditGroupProjects();
 }
 
 async function saveGroupEdits() {
@@ -1649,24 +1788,89 @@ async function saveGroupEdits() {
   if (!name) {
     const n = document.getElementById('editGroupNote');
     n.textContent = 'שם הקבוצה חובה'; n.className = 'edit-user-note warn';
+    editGroupSwitchTab('general');
     return;
   }
   const btn = document.getElementById('editGroupSaveBtn');
   btn.disabled = true; btn.textContent = 'שומר...';
   try {
-    if (editingGroupId) {
-      await db.collection('nav_groups').doc(editingGroupId).update({ name, description: desc });
+    // 1. Group doc itself: create or update name/desc
+    let groupId = editingGroupId;
+    if (groupId) {
+      await db.collection('nav_groups').doc(groupId).update({ name, description: desc });
     } else {
-      await db.collection('nav_groups').add({
+      const ref = await db.collection('nav_groups').add({
         name, description: desc,
         createdBy: state.user.uid,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
+      groupId = ref.id;
     }
+
+    // 2. Members + Projects diffs — only relevant when editing an existing group
+    if (editingGroupState) {
+      const batch = db.batch();
+      let writes = 0;
+
+      // Member diffs
+      const added   = [...editingGroupState.members].filter(uid => !editingGroupState.origMembers.has(uid));
+      const removed = [...editingGroupState.origMembers].filter(uid => !editingGroupState.members.has(uid));
+      added.forEach(uid => {
+        batch.update(db.collection('nav_user_roles').doc(uid), {
+          groups: firebase.firestore.FieldValue.arrayUnion(groupId)
+        });
+        writes++;
+      });
+      removed.forEach(uid => {
+        batch.update(db.collection('nav_user_roles').doc(uid), {
+          groups: firebase.firestore.FieldValue.arrayRemove(groupId)
+        });
+        writes++;
+      });
+
+      // Project diffs
+      const allPids = new Set([
+        ...editingGroupState.projects.keys(),
+        ...editingGroupState.origProjects.keys(),
+      ]);
+      let projectChanges = 0;
+      allPids.forEach(pid => {
+        const oldLevel = editingGroupState.origProjects.get(pid); // 'view' | 'edit' | undefined
+        const newLevel = editingGroupState.projects.get(pid);     // same
+        if (oldLevel === newLevel) return; // no change
+        const ref = db.collection('nav_projects').doc(pid);
+        if (newLevel === 'edit') {
+          // ensure in BOTH viewerGroups and editorGroups
+          batch.update(ref, {
+            viewerGroups: firebase.firestore.FieldValue.arrayUnion(groupId),
+            editorGroups: firebase.firestore.FieldValue.arrayUnion(groupId),
+          });
+        } else if (newLevel === 'view') {
+          // ensure in viewerGroups, NOT in editorGroups
+          batch.update(ref, {
+            viewerGroups: firebase.firestore.FieldValue.arrayUnion(groupId),
+            editorGroups: firebase.firestore.FieldValue.arrayRemove(groupId),
+          });
+        } else {
+          // removed entirely
+          batch.update(ref, {
+            viewerGroups: firebase.firestore.FieldValue.arrayRemove(groupId),
+            editorGroups: firebase.firestore.FieldValue.arrayRemove(groupId),
+          });
+        }
+        writes++; projectChanges++;
+      });
+
+      if (writes) await batch.commit();
+      if (projectChanges) notifyProjectChange();
+    }
+
     toast('נשמר ✓');
     closeModal('editGroupModal');
     editingGroupId = null;
+    editingGroupState = null;
     await loadAdminGroups();
+    await loadAdminUsers(); // refresh so other tabs reflect the membership changes
   } catch (e) {
     const n = document.getElementById('editGroupNote');
     n.textContent = 'שגיאה: ' + (e.message || e); n.className = 'edit-user-note warn';
@@ -1679,13 +1883,35 @@ async function deleteGroup(groupId) {
   if (!isSuperAdminUser()) return;
   const g = adminGroupsCache.find(x => x.id === groupId);
   if (!g) return;
-  if (!confirm(`למחוק את הקבוצה "${g.name}"? משתמשים שהיו שייכים אליה לא יושפעו אוטומטית.`)) return;
+  if (!confirm(`למחוק את הקבוצה "${g.name}"?\nכל המשתמשים יוסרו ממנה וההרשאות שניתנו דרכה לכל פרוייקט יבוטלו.`)) return;
   try {
-    await db.collection('nav_groups').doc(groupId).delete();
-    toast('נמחק ✓');
+    // Find everyone in the group + every project granting access through it
+    if (!adminUsersCache.length) await loadAdminUsers();
+    const affectedUsers    = adminUsersCache.filter(u => (u.groups || []).includes(groupId));
+    const affectedProjects = state.projects.filter(p =>
+      (p.viewerGroups || []).includes(groupId) || (p.editorGroups || []).includes(groupId));
+
+    const batch = db.batch();
+    affectedUsers.forEach(u => {
+      batch.update(db.collection('nav_user_roles').doc(u.uid), {
+        groups: firebase.firestore.FieldValue.arrayRemove(groupId)
+      });
+    });
+    affectedProjects.forEach(p => {
+      batch.update(db.collection('nav_projects').doc(p.id), {
+        viewerGroups: firebase.firestore.FieldValue.arrayRemove(groupId),
+        editorGroups: firebase.firestore.FieldValue.arrayRemove(groupId),
+      });
+    });
+    batch.delete(db.collection('nav_groups').doc(groupId));
+    await batch.commit();
+
+    if (affectedProjects.length) notifyProjectChange();
+    toast(`נמחק ✓ (ניקוי ב-${affectedUsers.length} משתמשים ו-${affectedProjects.length} פרוייקטים)`, 4000);
     await loadAdminGroups();
+    await loadAdminUsers();
   } catch (e) {
-    toast('שגיאה במחיקה: ' + (e.message || e), 3500);
+    toast('שגיאה במחיקה: ' + (e.message || e), 4500);
   }
 }
 
