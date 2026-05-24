@@ -272,9 +272,9 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 
 /* Saved point markers (custom div icons) */
 .saved-point-marker{background:none!important;border:none!important;display:flex;align-items:center;justify-content:center}
-.saved-pin{width:26px;height:26px;background:var(--primary);border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4);position:relative;display:flex;align-items:center;justify-content:center}
-.saved-pin.selected{background:var(--gold);border-color:#fff;transform:scale(1.2);box-shadow:0 0 0 4px rgba(212,160,21,.3),0 2px 8px rgba(0,0,0,.4)}
-.saved-pin .num{color:#fff;font-size:11px;font-weight:800;line-height:1}
+.saved-pin{width:20px;height:20px;background:var(--primary);border:2.5px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4);position:relative;display:flex;align-items:center;justify-content:center}
+.saved-pin.selected{background:var(--gold);border-color:#fff;transform:scale(1.25);box-shadow:0 0 0 4px rgba(212,160,21,.3),0 2px 8px rgba(0,0,0,.4)}
+.saved-pin .num{color:#fff;font-size:10px;font-weight:800;line-height:1}
 
 /* Active (unsaved) marker */
 .active-point-marker{background:none!important;border:none!important}
@@ -591,7 +591,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <div class="project-bar">
     <span class="label">פרוייקט:</span>
     <select class="project-select" id="projectSelect" onchange="onProjectChange()">
-      <option value="__all">כל הנקודות</option>
+      <option value="__all">כללי</option>
     </select>
     <button class="btn-icon-square" id="editProjectBtn" onclick="openEditProjectModal()" title="הגדרות פרוייקט" style="background:var(--surface2);color:var(--text-muted)">⚙️</button>
     <button class="btn-icon-square" id="addProjectBtn" onclick="openNewProjectModal()" title="פרוייקט חדש">➕</button>
@@ -722,7 +722,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <button class="modal-close" onclick="closeModal('newProjectModal')">×</button>
     <h3>פרוייקט חדש</h3>
     <label for="newProjectName">שם הפרוייקט</label>
-    <input type="text" id="newProjectName" placeholder="לדוגמה: חיפוש רחפן נחל אוג" maxlength="60">
+    <input type="text" id="newProjectName" placeholder="לדוגמה: חיפוש נעדר - נחל אוג" maxlength="60">
 
     <label class="form-checkbox" style="margin-top:14px">
       <input type="checkbox" id="newProjectOpenToAdd">
@@ -1740,7 +1740,7 @@ async function deleteProjectDoc(projectId) {
 function renderProjectSelector() {
   const sel = document.getElementById('projectSelect');
   const current = state.currentProjectId;
-  sel.innerHTML = '<option value="__all">כל הנקודות</option>';
+  sel.innerHTML = '<option value="__all">כללי</option>';
   state.projects.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
@@ -2912,11 +2912,14 @@ function renderPointsOnMap() {
       icon: L.divIcon({
         className: 'saved-point-marker',
         html: `<div class="saved-pin${isSelected ? ' selected' : ''}"><span class="num">${selIdx >= 0 ? selIdx+1 : ''}</span></div>`,
-        iconSize: [26,26], iconAnchor: [13,13]
+        iconSize: [20,20], iconAnchor: [10,10]
       }),
       zIndexOffset: isSelected ? 800 : 200
     });
-    marker.bindTooltip(p.name || '(ללא שם)', { permanent: true, direction: 'top', offset: [0, -10], className: 'point-label' });
+    // Tooltip is on-demand instead of permanent — labels were cluttering the
+    // map. On desktop the name appears on hover; on touch devices it appears
+    // on tap (the same gesture as the click handler).
+    marker.bindTooltip(p.name || '(ללא שם)', { permanent: false, direction: 'top', offset: [0, -10], className: 'point-label' });
     marker.on('click', () => onPointMarkerClick(p));
     marker.addTo(leafletMap);
     state.mapMarkers.set(p.id, marker);
