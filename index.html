@@ -1199,23 +1199,27 @@ function hideAuthModal() { document.getElementById('authModal').classList.remove
 function signInWithGoogle() {
   if (!auth) { toast('Firebase לא נטען'); return; }
   const provider = new firebase.auth.GoogleAuthProvider();
-  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  if (isMobile) {
-    // Redirect flow is more reliable on mobile than popup
-    auth.signInWithRedirect(provider).catch(e => {
-      if (e && e.code !== 'auth/cancelled-popup-request') {
-        toast('שגיאה בכניסה: ' + e.message, 4000);
-      }
-    });
-  } else {
-    auth.signInWithPopup(provider).then(() => {
-      hideAuthModal();
-    }).catch(e => {
-      if (e && e.code === 'auth/cancelled-popup-request') return;
-      if (e && e.code === 'auth/popup-closed-by-user') return;
-      toast('שגיאה בכניסה: ' + e.message, 4000);
-    });
-  }
+  // Try popup first — it works in the same browsing context so it sidesteps the
+  // third-party-cookie / cross-site-storage restrictions that have been breaking
+  // signInWithRedirect on modern Chrome/Android. Fall back to redirect only
+  // when the browser actively blocks the popup.
+  auth.signInWithPopup(provider).then(() => {
+    hideAuthModal();
+  }).catch(e => {
+    if (!e || !e.code) { toast('שגיאה בכניסה', 4000); return; }
+    if (e.code === 'auth/cancelled-popup-request') return;
+    if (e.code === 'auth/popup-closed-by-user') return;
+    if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
+      // Browser blocked the popup → use redirect as a last resort
+      auth.signInWithRedirect(provider).catch(err => {
+        if (err && err.code && err.code !== 'auth/cancelled-popup-request') {
+          toast('שגיאה בכניסה: ' + err.message, 4000);
+        }
+      });
+      return;
+    }
+    toast('שגיאה בכניסה: ' + e.message, 4000);
+  });
 }
 
 function signOutNow() {

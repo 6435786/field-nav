@@ -1,6 +1,6 @@
 // field-nav service worker — offline shell + cached library code
 // Bump CACHE_VERSION on every release that ships changes to the cached files.
-const CACHE_VERSION = 'v61';
+const CACHE_VERSION = 'v62';
 const SHELL_CACHE = `fieldnav-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `fieldnav-runtime-${CACHE_VERSION}`;
 
