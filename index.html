@@ -3296,8 +3296,21 @@ function initMap() {
     'שבילי ישראל': L.tileLayer('https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', { attribution: '© Israel Hiking', maxZoom: 16 })
   };
   layers['לוויין'].addTo(leafletMap);
-  // Layers are mutually exclusive — render as base-layer radio, not overlay checkboxes
-  L.control.layers(layers, null, { collapsed: true, position: 'topleft' }).addTo(leafletMap);
+  // "מפות אופליין" overlay — a layer group of green rectangles for downloaded areas.
+  // Off by default; toggling it on shows the regions + reveals the compact download FAB.
+  offlineRegionsLayer = L.layerGroup();
+  L.control.layers(layers, { 'מפות אופליין': offlineRegionsLayer }, { collapsed: true, position: 'topleft' }).addTo(leafletMap);
+  leafletMap.on('overlayadd', e => {
+    if (e.layer === offlineRegionsLayer) {
+      renderOfflineRegions();
+      document.getElementById('offlineDlFab')?.classList.add('visible');
+    }
+  });
+  leafletMap.on('overlayremove', e => {
+    if (e.layer === offlineRegionsLayer) {
+      document.getElementById('offlineDlFab')?.classList.remove('visible');
+    }
+  });
 
   const trackControl = L.control({ position: 'bottomleft' });
   trackControl.onAdd = function() {
@@ -5049,6 +5062,47 @@ let offlineSelectionActive = false;
 let offlineCornerMarkers = [];
 let offlineRect = null;
 let offlineDownloadAbort = null;
+let offlineRegionsLayer = null; // Leaflet LayerGroup of downloaded-area rectangles
+
+// ----- Downloaded-region tracking (per-device, localStorage) -----
+// Each record: { id, north, south, east, west, layers:[keys], maxZoom, downloadedAt }
+const OFFLINE_REGIONS_KEY = 'fieldnav.offlineRegions';
+function getOfflineRegions() {
+  try { return JSON.parse(localStorage.getItem(OFFLINE_REGIONS_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function saveOfflineRegion(region) {
+  const regions = getOfflineRegions();
+  regions.push(region);
+  localStorage.setItem(OFFLINE_REGIONS_KEY, JSON.stringify(regions));
+  renderOfflineRegions();
+}
+function deleteOfflineRegion(id) {
+  if (!confirm('להסיר את סימון האזור מהמפה?\n(האריחים עצמם יישארו בזיכרון עד שתנקה אותם או את האתר)')) return;
+  const regions = getOfflineRegions().filter(r => r.id !== id);
+  localStorage.setItem(OFFLINE_REGIONS_KEY, JSON.stringify(regions));
+  renderOfflineRegions();
+  leafletMap.closePopup();
+}
+function renderOfflineRegions() {
+  if (!offlineRegionsLayer) return;
+  offlineRegionsLayer.clearLayers();
+  getOfflineRegions().forEach(r => {
+    const rect = L.rectangle([[r.south, r.west], [r.north, r.east]], {
+      color: '#059669', weight: 1.5, fillColor: '#059669', fillOpacity: 0.18,
+    });
+    const layerNames = (r.layers || []).map(k => OFFLINE_LAYERS[k]?.name || k).join(', ');
+    const dateStr = new Date(r.downloadedAt).toLocaleDateString('he-IL');
+    rect.bindPopup(
+      `<div style="font-size:13px;font-weight:800;margin-bottom:5px">📥 אזור אופליין</div>` +
+      `<div style="font-size:12px;line-height:1.6">שכבות: <b>${escapeHtml(layerNames)}</b><br>` +
+      `רמת פירוט: עד זום ${r.maxZoom}<br>` +
+      `<span style="color:#888">הורד: ${dateStr}</span></div>` +
+      `<button onclick="deleteOfflineRegion('${r.id}')" style="margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:5px 10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">🗑 הסר סימון</button>`
+    );
+    offlineRegionsLayer.addLayer(rect);
+  });
+}
 
 function lon2tile(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
 function lat2tile(lat, z) {
@@ -5248,6 +5302,14 @@ async function startOfflineDownload() {
   if (offlineDownloadAbort.signal.aborted) {
     toast('הורדה בוטלה', 2500);
   } else {
+    // Record the downloaded region so it can be shown on the map as a green rectangle
+    saveOfflineRegion({
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+      north: bounds.getNorth(), south: bounds.getSouth(),
+      east: bounds.getEast(), west: bounds.getWest(),
+      layers, maxZoom: maxZ,
+      downloadedAt: Date.now(),
+    });
     toast(`✓ ${(done - failed).toLocaleString()} אריחים + ${(elevDone - elevFailed).toLocaleString()} נקודות גובה זמינות אופליין`, 5000);
     setTimeout(closeOfflineDl, 2000);
   }
