@@ -257,7 +257,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .show-sheet-btn:active{transform:translateX(-50%) scale(.97)}
 /* When any top-of-map banner is visible (recording / measure / manual-pick / manual-active),
    slide the button down so it doesn't collide with the centered banner. */
-.map-area:has(.recording-banner.show, .measure-banner.show, .manual-pick-banner.show, .manual-banner.show) .show-sheet-btn{top:54px}
+.map-area:has(.recording-banner.show, .measure-banner.show, .manual-pick-banner.show, .manual-banner.show, .offline-pick-banner.show) .show-sheet-btn{top:54px}
 .map-pin-msg.show{display:block;animation:fadeOut 2.5s forwards}
 @keyframes fadeOut{0%,60%{opacity:1}100%{opacity:0}}
 
@@ -299,6 +299,15 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .manual-banner button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:2px 8px;border-radius:10px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;margin-right:8px}
 .manual-pick-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#d97706;color:#fff;padding:8px 16px;border-radius:22px;font-size:13px;font-weight:600;z-index:560;box-shadow:0 4px 12px rgba(0,0,0,.3);display:none;align-items:center;gap:10px;max-width:90vw}
 .manual-pick-banner.show{display:flex}
+/* Offline-tile picking banner (black, matches toast look) + compact download FAB */
+.offline-pick-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:9px 16px;border-radius:22px;font-size:13px;font-weight:600;z-index:560;box-shadow:0 4px 12px rgba(0,0,0,.35);display:none;align-items:center;gap:10px;max-width:90vw}
+.offline-pick-banner.show{display:flex}
+.offline-pick-banner button{background:rgba(255,255,255,.22);border:none;color:#fff;padding:3px 12px;border-radius:12px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+.offline-pick-banner button:hover{background:rgba(255,255,255,.4)}
+.offline-dl-fab{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;border:none;padding:9px 16px;border-radius:22px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;z-index:555;box-shadow:0 3px 12px rgba(5,150,105,.4);display:none;align-items:center;gap:6px}
+.offline-dl-fab.visible{display:inline-flex}
+.offline-dl-fab:hover{background:#047857}
+.offline-dl-fab:active{transform:translateX(-50%) scale(.96)}
 .manual-pick-banner button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:3px 12px;border-radius:12px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
 .manual-pick-banner button:hover{background:rgba(255,255,255,.4)}
 
@@ -649,7 +658,6 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <button onclick="openImportFile()">📥 ייבוא GPX / KML</button>
     <button onclick="exportCurrentAsGPX()">📤 ייצוא הפרוייקט הנוכחי</button>
     <button onclick="clearImportedTracks()" id="clearTracksBtn" style="display:none">🧹 נקה מסלולים מיובאים</button>
-    <button onclick="openOfflineDownloader()">💾 הורד אריחי מפה לאופליין</button>
     <button onclick="triggerInstall()" id="installAppBtn">📲 התקן כאפליקציה</button>
     <button onclick="toggleTheme()" id="themeToggleBtn">🌙 מצב לילה</button>
   </div>
@@ -730,6 +738,11 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
       <span id="recordingStats">מקליט · 00:00 · 0.00 ק"מ · 0 נק׳</span>
       <button class="rec-line-toggle" onclick="toggleRecordingLine()" title="הסתר/הצג קו" aria-label="הסתר/הצג קו">👁</button>
     </div>
+    <div class="offline-pick-banner" id="offlinePickBanner">
+      <span id="offlinePickBannerText">📍 לחץ על המפה לסימון פינה ראשונה</span>
+      <button onclick="cancelOfflinePicking()">בטל</button>
+    </div>
+    <button class="offline-dl-fab" id="offlineDlFab" onclick="startOfflinePicking()" title="הורד אריחים לאזור זה">💾 הורד אריחים</button>
   </div>
 
   <!-- Bottom sheet (mobile) / right-panel content (desktop) -->
@@ -5110,42 +5123,48 @@ function lat2tile(lat, z) {
   return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
 }
 
-function openOfflineDownloader() {
-  document.getElementById('moreMenu').style.display = 'none';
+// Entry point from the compact FAB (shown only in "מפות אופליין" mode).
+// Stage 1: NO modal — just a black instruction banner while the user taps two
+// corners on the fully-visible map. The config modal only opens after corner 2.
+function startOfflinePicking() {
   resetOfflineSelection();
-  // Build layer checkboxes
-  const wrap = document.getElementById('offlineLayerChecks');
-  wrap.innerHTML = Object.entries(OFFLINE_LAYERS).map(([key, l]) =>
-    `<label><input type="checkbox" value="${key}" checked onchange="updateOfflineEstimate()"> ${l.name} <small>${l.avgKB} KB/אריח</small></label>`
-  ).join('');
-  document.getElementById('offlineDlConfig').style.display = 'none';
-  document.getElementById('offlineDlBtn').disabled = true;
-  document.getElementById('offlineDlInfo').textContent = 'סמן אזור על המפה: לחץ על פינה אחת ואז על הפינה הנגדית.';
-  const modal = document.getElementById('offlineDlModal');
-  modal.classList.add('show');
   offlineSelectionActive = true;
-  toast('לחץ על המפה לסימון פינה ראשונה', 3500);
-  // Move the panel to the bottom AND make the backdrop click-through so the
-  // user can actually tap the map to pick corners (otherwise the overlay
-  // swallows the click and closes the modal).
-  modal.style.alignItems = 'flex-end';
-  modal.classList.add('picking-area');
+  showOfflinePickBanner('📍 לחץ על המפה לסימון פינה ראשונה');
+}
+
+function showOfflinePickBanner(text) {
+  document.getElementById('offlinePickBannerText').textContent = text;
+  document.getElementById('offlinePickBanner').classList.add('show');
+}
+function hideOfflinePickBanner() {
+  document.getElementById('offlinePickBanner').classList.remove('show');
+}
+function cancelOfflinePicking() {
+  resetOfflineSelection();
+  hideOfflinePickBanner();
 }
 
 function handleOfflineCornerClick(e) {
   const m = L.circleMarker(e.latlng, { className: 'offline-rect-corner', radius: 7, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1, weight: 2 }).addTo(leafletMap);
   offlineCornerMarkers.push(m);
   if (offlineCornerMarkers.length === 1) {
-    toast('עכשיו לחץ על הפינה הנגדית', 3000);
+    showOfflinePickBanner('📍 עכשיו לחץ על הפינה הנגדית');
   } else if (offlineCornerMarkers.length === 2) {
     const bounds = L.latLngBounds(offlineCornerMarkers.map(c => c.getLatLng()));
     if (offlineRect) leafletMap.removeLayer(offlineRect);
     offlineRect = L.rectangle(bounds, { color: '#dc2626', weight: 2, fillOpacity: 0.12 }).addTo(leafletMap);
     offlineSelectionActive = false;
+    hideOfflinePickBanner();
+    // NOW open the config modal (centred, full) with layer checkboxes + zoom
+    const wrap = document.getElementById('offlineLayerChecks');
+    wrap.innerHTML = Object.entries(OFFLINE_LAYERS).map(([key, l]) =>
+      `<label><input type="checkbox" value="${key}" checked onchange="updateOfflineEstimate()"> ${l.name} <small>${l.avgKB} KB/אריח</small></label>`
+    ).join('');
     document.getElementById('offlineDlInfo').textContent = 'נבחר אזור. בחר שכבות + רמת פירוט והורד.';
     document.getElementById('offlineDlConfig').style.display = 'block';
     document.getElementById('offlineDlBtn').disabled = false;
     const modal = document.getElementById('offlineDlModal');
+    modal.classList.add('show');
     modal.style.alignItems = 'center';
     modal.classList.remove('picking-area'); // restore full modal — config UI now interactive
     updateOfflineEstimate();
@@ -5319,6 +5338,7 @@ async function startOfflineDownload() {
 function closeOfflineDl() {
   if (offlineDownloadAbort) offlineDownloadAbort.abort();
   resetOfflineSelection();
+  hideOfflinePickBanner();
   const modal = document.getElementById('offlineDlModal');
   modal.classList.remove('show');
   modal.classList.remove('picking-area');

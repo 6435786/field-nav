@@ -1,8 +1,12 @@
 // field-nav service worker — offline shell + cached library code
 // Bump CACHE_VERSION on every release that ships changes to the cached files.
-const CACHE_VERSION = 'v65';
+const CACHE_VERSION = 'v66';
 const SHELL_CACHE = `fieldnav-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `fieldnav-runtime-${CACHE_VERSION}`;
+// Map tiles live in a STABLE, unversioned cache so they survive app updates.
+// (Previously tiles went into the versioned runtime cache and were wiped on
+// every release — disastrous for someone who pre-downloaded a rescue area.)
+const TILE_CACHE = 'fieldnav-tiles';
 
 // Files served from our origin that the app needs to function offline.
 const SHELL_FILES = [
@@ -38,7 +42,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => Promise.all(
-      keys.filter(k => k !== SHELL_CACHE && k !== RUNTIME_CACHE)
+      keys.filter(k => k !== SHELL_CACHE && k !== RUNTIME_CACHE && k !== TILE_CACHE)
           .map(k => caches.delete(k))
     )).then(() => self.clients.claim())
   );
@@ -59,7 +63,7 @@ self.addEventListener('fetch', event => {
   // Map tiles — cache-first with rolling cache
   const isTile = /tile\.openstreetmap|server\.arcgisonline\.com|opentopomap|israelhiking\.osm\.org\.il/.test(url.host + url.pathname);
   if (isTile) {
-    event.respondWith(cacheFirst(req, RUNTIME_CACHE));
+    event.respondWith(cacheFirst(req, TILE_CACHE)); // stable cache — persists across updates
     return;
   }
 
