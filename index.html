@@ -5126,7 +5126,7 @@ function renderOfflineRegions() {
   offlineRegionsLayer.clearLayers();
   getOfflineRegions().forEach(r => {
     const rect = L.rectangle([[r.south, r.west], [r.north, r.east]], {
-      color: '#059669', weight: 1.5, fillColor: '#059669', fillOpacity: 0.18,
+      color: '#16a34a', weight: 3, dashArray: '6,4', fillColor: '#22c55e', fillOpacity: 0.28,
     });
     const layerNames = (r.layers || []).map(k => OFFLINE_LAYERS[k]?.name || k).join(', ');
     const dateStr = new Date(r.downloadedAt).toLocaleDateString('he-IL');
@@ -5225,7 +5225,7 @@ function updateOfflineEstimate() {
   if (!offlineRect) return;
   const maxZ = parseInt(document.getElementById('offlineZoomMax').value, 10);
   document.getElementById('offlineZoomMaxLbl').textContent = maxZ;
-  const minZ = Math.max(10, maxZ - 4);
+  const minZ = 6; // fixed low floor → offline map stays visible even when fully zoomed out (low zooms cost ~nothing)
   const bounds = offlineRect.getBounds();
   const layers = selectedOfflineLayers();
   // Each layer counts only up to its own maxZoom (no phantom tiles)
@@ -5249,7 +5249,7 @@ async function startOfflineDownload() {
   const layers = selectedOfflineLayers();
   if (!layers.length) { toast('בחר לפחות שכבה אחת'); return; }
   const maxZ = parseInt(document.getElementById('offlineZoomMax').value, 10);
-  const minZ = Math.max(10, maxZ - 4);
+  const minZ = 6; // fixed low floor → offline map stays visible even when fully zoomed out (low zooms cost ~nothing)
   const bounds = offlineRect.getBounds();
 
   // Build list of all (layer, z, x, y)
