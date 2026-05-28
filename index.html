@@ -3314,7 +3314,7 @@ function initMap() {
   // The overlay is added to the control only for approved+ users (see
   // updateOfflineLayerAccess); toggling it on shows the regions + reveals the FAB.
   offlineRegionsLayer = L.layerGroup();
-  offlineLayerControl = L.control.layers(layers, null, { collapsed: true, position: 'topleft' }).addTo(leafletMap);
+  offlineLayerControl = L.control.layers(layers, {}, { collapsed: true, position: 'topleft' }).addTo(leafletMap);
   leafletMap.on('overlayadd', e => {
     if (e.layer === offlineRegionsLayer) {
       renderOfflineRegions();
@@ -5082,21 +5082,19 @@ let offlineRect = null;
 let offlineDownloadAbort = null;
 let offlineRegionsLayer = null;   // Leaflet LayerGroup of downloaded-area rectangles
 let offlineLayerControl = null;   // the L.control.layers instance
-let offlineOverlayShown = false;  // whether the "מפות אופליין" overlay is currently in the control
 
 // Show/hide the entire "מפות אופליין" capability based on role. Offline tiles
 // only exist for approved+ users (they're the only ones who can download), so
 // for everyone below we remove the overlay entry, the rectangles, and the FAB.
 function updateOfflineLayerAccess() {
   if (!offlineLayerControl || !offlineRegionsLayer || !leafletMap) return;
-  const allowed = isApprovedUser();
-  if (allowed && !offlineOverlayShown) {
+  // Idempotent: always strip the overlay first (safe even if it isn't there),
+  // then re-add it only when the role qualifies. No sticky flag to desync.
+  try { offlineLayerControl.removeLayer(offlineRegionsLayer); } catch (e) {}
+  if (isApprovedUser()) {
     offlineLayerControl.addOverlay(offlineRegionsLayer, 'מפות אופליין');
-    offlineOverlayShown = true;
-  } else if (!allowed && offlineOverlayShown) {
+  } else {
     if (leafletMap.hasLayer(offlineRegionsLayer)) leafletMap.removeLayer(offlineRegionsLayer);
-    offlineLayerControl.removeLayer(offlineRegionsLayer);
-    offlineOverlayShown = false;
     document.getElementById('offlineDlFab')?.classList.remove('visible');
   }
 }
