@@ -1283,6 +1283,7 @@ function updateAuthUI() {
     addBtn.title = 'התחבר עם גוגל';
   }
   updateAddPointBtn();
+  updateOfflineLayerAccess(); // role may have changed → show/hide the offline-maps overlay
 }
 
 if (auth) {
@@ -3310,13 +3311,14 @@ function initMap() {
   };
   layers['לוויין'].addTo(leafletMap);
   // "מפות אופליין" overlay — a layer group of green rectangles for downloaded areas.
-  // Off by default; toggling it on shows the regions + reveals the compact download FAB.
+  // The overlay is added to the control only for approved+ users (see
+  // updateOfflineLayerAccess); toggling it on shows the regions + reveals the FAB.
   offlineRegionsLayer = L.layerGroup();
-  L.control.layers(layers, { 'מפות אופליין': offlineRegionsLayer }, { collapsed: true, position: 'topleft' }).addTo(leafletMap);
+  offlineLayerControl = L.control.layers(layers, null, { collapsed: true, position: 'topleft' }).addTo(leafletMap);
   leafletMap.on('overlayadd', e => {
     if (e.layer === offlineRegionsLayer) {
       renderOfflineRegions();
-      document.getElementById('offlineDlFab')?.classList.add('visible');
+      if (isApprovedUser()) document.getElementById('offlineDlFab')?.classList.add('visible');
     }
   });
   leafletMap.on('overlayremove', e => {
@@ -3324,6 +3326,7 @@ function initMap() {
       document.getElementById('offlineDlFab')?.classList.remove('visible');
     }
   });
+  updateOfflineLayerAccess(); // show the offline overlay now if the (already known) role qualifies
 
   const trackControl = L.control({ position: 'bottomleft' });
   trackControl.onAdd = function() {
@@ -5064,18 +5067,39 @@ function toggleTheme() {
 
 // ========== OFFLINE TILE DOWNLOAD (Sprint 3) ==========
 // Tile templates and average size estimates per layer (KB)
+// maxZoom = the highest zoom each source actually serves. Downloading beyond it
+// just 404s (that was the '3258 tiles failed' bug — Israel Hiking stops at 16).
 const OFFLINE_LAYERS = {
-  street: { name: 'מפת רחובות', url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png', avgKB: 18 },
-  satellite: { name: 'לוויין', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', avgKB: 60 },
-  topo: { name: 'טופוגרפי', url: 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png', avgKB: 32 },
-  hiking: { name: 'שבילי ישראל', url: 'https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', avgKB: 25 },
+  street: { name: 'מפת רחובות', url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png', avgKB: 18, maxZoom: 19 },
+  satellite: { name: 'לוויין', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', avgKB: 60, maxZoom: 19 },
+  topo: { name: 'טופוגרפי', url: 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png', avgKB: 32, maxZoom: 17 },
+  hiking: { name: 'שבילי ישראל', url: 'https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', avgKB: 25, maxZoom: 16 },
 };
 
 let offlineSelectionActive = false;
 let offlineCornerMarkers = [];
 let offlineRect = null;
 let offlineDownloadAbort = null;
-let offlineRegionsLayer = null; // Leaflet LayerGroup of downloaded-area rectangles
+let offlineRegionsLayer = null;   // Leaflet LayerGroup of downloaded-area rectangles
+let offlineLayerControl = null;   // the L.control.layers instance
+let offlineOverlayShown = false;  // whether the "מפות אופליין" overlay is currently in the control
+
+// Show/hide the entire "מפות אופליין" capability based on role. Offline tiles
+// only exist for approved+ users (they're the only ones who can download), so
+// for everyone below we remove the overlay entry, the rectangles, and the FAB.
+function updateOfflineLayerAccess() {
+  if (!offlineLayerControl || !offlineRegionsLayer || !leafletMap) return;
+  const allowed = isApprovedUser();
+  if (allowed && !offlineOverlayShown) {
+    offlineLayerControl.addOverlay(offlineRegionsLayer, 'מפות אופליין');
+    offlineOverlayShown = true;
+  } else if (!allowed && offlineOverlayShown) {
+    if (leafletMap.hasLayer(offlineRegionsLayer)) leafletMap.removeLayer(offlineRegionsLayer);
+    offlineLayerControl.removeLayer(offlineRegionsLayer);
+    offlineOverlayShown = false;
+    document.getElementById('offlineDlFab')?.classList.remove('visible');
+  }
+}
 
 // ----- Downloaded-region tracking (per-device, localStorage) -----
 // Each record: { id, north, south, east, west, layers:[keys], maxZoom, downloadedAt }
@@ -5127,6 +5151,7 @@ function lat2tile(lat, z) {
 // Stage 1: NO modal — just a black instruction banner while the user taps two
 // corners on the fully-visible map. The config modal only opens after corner 2.
 function startOfflinePicking() {
+  if (!isApprovedUser()) { toast('הורדת מפות זמינה למשתמש מאושר ומעלה', 3500); return; }
   resetOfflineSelection();
   offlineSelectionActive = true;
   showOfflinePickBanner('📍 לחץ על המפה לסימון פינה ראשונה');
@@ -5202,15 +5227,19 @@ function updateOfflineEstimate() {
   document.getElementById('offlineZoomMaxLbl').textContent = maxZ;
   const minZ = Math.max(10, maxZ - 4);
   const bounds = offlineRect.getBounds();
-  const tilesPerLayer = countTilesInBounds(bounds, minZ, maxZ);
   const layers = selectedOfflineLayers();
-  const totalTiles = tilesPerLayer * layers.length;
-  const totalKB = layers.reduce((s, k) => s + tilesPerLayer * OFFLINE_LAYERS[k].avgKB, 0);
+  // Each layer counts only up to its own maxZoom (no phantom tiles)
+  let totalTiles = 0, totalKB = 0;
+  layers.forEach(k => {
+    const layerMaxZ = Math.min(maxZ, OFFLINE_LAYERS[k].maxZoom || maxZ);
+    const tiles = countTilesInBounds(bounds, minZ, layerMaxZ);
+    totalTiles += tiles;
+    totalKB += tiles * OFFLINE_LAYERS[k].avgKB;
+  });
   const sizeStr = totalKB > 1024 ? (totalKB / 1024).toFixed(1) + ' MB' : totalKB + ' KB';
   document.getElementById('offlineSummary').innerHTML =
-    `אריחים לשכבה: <span class="num">${tilesPerLayer.toLocaleString()}</span> · ` +
-    `שכבות: <span class="num">${layers.length}</span> · ` +
-    `סה"כ אריחים: <span class="num">${totalTiles.toLocaleString()}</span><br>` +
+    `סה"כ אריחים: <span class="num">${totalTiles.toLocaleString()}</span> · ` +
+    `שכבות: <span class="num">${layers.length}</span><br>` +
     `נפח משוער: <span class="num">~${sizeStr}</span> · רמות זום: ${minZ}-${maxZ}`;
   document.getElementById('offlineDlBtn').disabled = layers.length === 0 || totalTiles === 0;
 }
@@ -5227,7 +5256,8 @@ async function startOfflineDownload() {
   const jobs = [];
   for (const key of layers) {
     const layer = OFFLINE_LAYERS[key];
-    for (let z = minZ; z <= maxZ; z++) {
+    const layerMaxZ = Math.min(maxZ, layer.maxZoom || maxZ); // don't request zoom levels the source doesn't serve
+    for (let z = minZ; z <= layerMaxZ; z++) {
       const tn = lat2tile(bounds.getNorth(), z);
       const ts = lat2tile(bounds.getSouth(), z);
       const tw = lon2tile(bounds.getWest(), z);
