@@ -553,6 +553,10 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 
 /* ========== MODALS ========== */
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:4000;padding:14px;backdrop-filter:blur(2px)}
+/* While picking a map area, the modal backdrop must let clicks reach the map.
+   The content stays interactive (cancel button) but the overlay is click-through. */
+.modal.picking-area{background:transparent;backdrop-filter:none;pointer-events:none}
+.modal.picking-area .modal-content{pointer-events:auto;box-shadow:0 -4px 22px rgba(0,0,0,.25)}
 .modal.show{display:flex}
 .modal-content{background:#fff;border-radius:var(--radius);padding:20px;max-width:420px;width:100%;position:relative;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
 .modal-close{position:absolute;top:8px;left:8px;background:var(--surface2);border:none;font-size:20px;cursor:pointer;color:var(--text);width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:inherit;font-weight:700}
@@ -5058,11 +5062,15 @@ function openOfflineDownloader() {
   document.getElementById('offlineDlConfig').style.display = 'none';
   document.getElementById('offlineDlBtn').disabled = true;
   document.getElementById('offlineDlInfo').textContent = 'סמן אזור על המפה: לחץ על פינה אחת ואז על הפינה הנגדית.';
-  document.getElementById('offlineDlModal').classList.add('show');
+  const modal = document.getElementById('offlineDlModal');
+  modal.classList.add('show');
   offlineSelectionActive = true;
   toast('לחץ על המפה לסימון פינה ראשונה', 3500);
-  // Move modal aside so map is visible while picking corners
-  document.getElementById('offlineDlModal').style.alignItems = 'flex-end';
+  // Move the panel to the bottom AND make the backdrop click-through so the
+  // user can actually tap the map to pick corners (otherwise the overlay
+  // swallows the click and closes the modal).
+  modal.style.alignItems = 'flex-end';
+  modal.classList.add('picking-area');
 }
 
 function handleOfflineCornerClick(e) {
@@ -5078,7 +5086,9 @@ function handleOfflineCornerClick(e) {
     document.getElementById('offlineDlInfo').textContent = 'נבחר אזור. בחר שכבות + רמת פירוט והורד.';
     document.getElementById('offlineDlConfig').style.display = 'block';
     document.getElementById('offlineDlBtn').disabled = false;
-    document.getElementById('offlineDlModal').style.alignItems = 'center';
+    const modal = document.getElementById('offlineDlModal');
+    modal.style.alignItems = 'center';
+    modal.classList.remove('picking-area'); // restore full modal — config UI now interactive
     updateOfflineEstimate();
   }
 }
@@ -5242,7 +5252,10 @@ async function startOfflineDownload() {
 function closeOfflineDl() {
   if (offlineDownloadAbort) offlineDownloadAbort.abort();
   resetOfflineSelection();
-  document.getElementById('offlineDlModal').classList.remove('show');
+  const modal = document.getElementById('offlineDlModal');
+  modal.classList.remove('show');
+  modal.classList.remove('picking-area');
+  modal.style.alignItems = 'center';
 }
 
 // ========== INIT ==========
