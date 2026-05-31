@@ -366,6 +366,13 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 .sheet-close:active{transform:scale(.92)}
 
 .sheet-body{padding:10px 16px 6px;overflow-y:auto;flex:1}
+/* Creator strip — small line at the top of the sheet body for saved points */
+.sheet-creator{display:flex;align-items:center;gap:8px;padding:7px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;font-size:12.5px}
+.sheet-creator .creator-label{color:var(--text-muted);font-weight:500;flex-shrink:0}
+.sheet-creator .creator-name{color:var(--text);font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet-creator .creator-icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;background:var(--primary-light);color:var(--primary);text-decoration:none;border-radius:50%;font-size:14px;flex-shrink:0;transition:all .15s}
+.sheet-creator .creator-icon:hover{background:var(--primary);color:#fff}
+.sheet-creator .creator-icon:active{transform:scale(.92)}
 
 /* Azimuth display */
 .azimuth-card{background:linear-gradient(135deg,#fef3c7 0%,#fff7ed 100%);border:1px solid #fbbf24;border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:12px;display:flex;align-items:center;gap:12px}
@@ -1476,6 +1483,31 @@ function isApprovedUser()  { return ['approved', 'admin', 'super_admin'].include
 function isAdminUser()     { return ['admin', 'super_admin'].includes(state.userRole); }
 function isSuperAdminUser() { return state.userRole === 'super_admin'; }
 
+// ===== User profile cache (for showing the creator of a point) =====
+// Map<uid, { displayName, phone, email, ... } | null>. Cleared on edits.
+const userProfileCache = new Map();
+async function getUserProfile(uid) {
+  if (!uid || !db) return null;
+  if (userProfileCache.has(uid)) return userProfileCache.get(uid);
+  try {
+    const snap = await db.collection('nav_user_roles').doc(uid).get();
+    const data = snap.exists ? snap.data() : null;
+    userProfileCache.set(uid, data);
+    return data;
+  } catch (e) {
+    userProfileCache.set(uid, null);
+    return null;
+  }
+}
+// Convert a phone string to the digits-only intl format wa.me expects
+// (Israeli prefix 0 → 972; leave already-prefixed numbers alone).
+function normalizePhoneForLinks(raw) {
+  const digits = (raw || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('0')) return '972' + digits.slice(1);
+  return digits;
+}
+
 // ===== My profile (self-edit) =====
 // Opened by clicking the auth pill. Lets the user edit their own displayName
 // and phone. The Firestore rule already allows self-update of those fields.
@@ -1506,6 +1538,7 @@ async function saveMyProfile() {
       displayName: name,
       phone: phone,
     });
+    userProfileCache.delete(state.user.uid); // invalidate so sheet-creator reflects the change
     toast('פרופיל עודכן ✓');
     closeModal('myProfileModal');
   } catch (e) {
@@ -1700,6 +1733,7 @@ async function saveUserEdits() {
       update.groups = [];
     }
     await db.collection('nav_user_roles').doc(editingUserUid).update(update);
+    userProfileCache.delete(editingUserUid); // invalidate so any open sheet shows fresh data
     toast('נשמר ✓');
     closeModal('editUserModal');
     editingUserUid = null;
@@ -3704,6 +3738,13 @@ function renderSheet() {
   const body = document.getElementById('sheetBody');
   let html = '';
 
+  // Creator line — only for saved points that carry a createdBy uid.
+  // Renders a placeholder; the profile is fetched async and patched in below.
+  const showCreator = isSaved && p.createdBy;
+  if (showCreator) {
+    html += `<div class="sheet-creator" id="sheetCreator"><span class="creator-label">הוסיף:</span><span class="creator-name">...</span></div>`;
+  }
+
   // Azimuth (if applicable)
   const az = getAzimuthInfo();
   if (az) {
@@ -3779,6 +3820,23 @@ function renderSheet() {
 
   // Load navigation info: elevations + distance/azimuth
   loadNavInfo(p.lat, p.lon);
+  // Async fill the creator line with name + (optional) call/WhatsApp icons
+  if (showCreator) updateSheetCreator(p.createdBy);
+}
+
+async function updateSheetCreator(uid) {
+  const wrap = document.getElementById('sheetCreator');
+  if (!wrap) return;
+  const profile = await getUserProfile(uid);
+  if (!document.getElementById('sheetCreator')) return; // sheet may have been replaced
+  const name = profile?.displayName || profile?.email || 'משתמש לא ידוע';
+  const phone = profile?.phone || '';
+  const phoneIntl = normalizePhoneForLinks(phone);
+  const icons = phone ? `
+    <a href="tel:${escapeHtml(phone)}" class="creator-icon" title="חיוג">📞</a>
+    <a href="https://wa.me/${escapeHtml(phoneIntl)}" target="_blank" rel="noopener" class="creator-icon" title="WhatsApp">💬</a>
+  ` : '';
+  wrap.innerHTML = `<span class="creator-label">הוסיף:</span><span class="creator-name">${escapeHtml(name)}</span>${icons}`;
 }
 
 function convRow(label, value, hint) {
