@@ -376,6 +376,12 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 .sheet-creator .creator-icon.icon-wa{background:#25D366}
 .sheet-creator .creator-icon.icon-wa:hover{background:#128C7E}
 .sheet-creator .creator-icon:active{transform:scale(.92)}
+/* Notes block in the sheet */
+.sheet-notes{padding:8px 11px;background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-sm);margin-bottom:10px;font-size:13px}
+.sheet-notes .notes-label{color:#92400e;font-weight:700;font-size:11.5px;display:block;margin-bottom:3px}
+.sheet-notes .notes-body{color:var(--text);line-height:1.45;word-break:break-word}
+[data-theme="dark"] .sheet-notes{background:rgba(146,64,14,.18);border-color:rgba(146,64,14,.35)}
+[data-theme="dark"] .sheet-notes .notes-label{color:#fbbf24}
 
 /* Azimuth display */
 .azimuth-card{background:linear-gradient(135deg,#fef3c7 0%,#fff7ed 100%);border:1px solid #fbbf24;border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:12px;display:flex;align-items:center;gap:12px}
@@ -1072,6 +1078,8 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <input type="text" id="newPointName" placeholder="לדוגמה: רחפן אבוד, רכב, נקודת התקרבות" maxlength="60">
     <label for="newPointProject">פרוייקט</label>
     <select id="newPointProject"></select>
+    <label for="newPointNotes">הערות <small style="color:var(--text-muted);font-weight:400">(אופציונלי)</small></label>
+    <textarea id="newPointNotes" class="form-control" placeholder="פרטים נוספים, סימני זיהוי, גישה..." rows="3" maxlength="500" style="resize:vertical;min-height:60px;font-family:inherit"></textarea>
     <div class="modal-actions">
       <button class="btn btn-cancel" onclick="closeModal('addPointModal')">ביטול</button>
       <button class="btn btn-confirm" onclick="confirmAddPoint()">שמור נקודה</button>
@@ -1113,6 +1121,8 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <input type="text" id="editPointName" maxlength="60">
     <label for="editPointProject">פרוייקט</label>
     <select id="editPointProject"></select>
+    <label for="editPointNotes">הערות <small style="color:var(--text-muted);font-weight:400">(אופציונלי)</small></label>
+    <textarea id="editPointNotes" class="form-control" placeholder="פרטים נוספים, סימני זיהוי, גישה..." rows="3" maxlength="500" style="resize:vertical;min-height:60px;font-family:inherit"></textarea>
     <div class="modal-actions">
       <button class="btn btn-danger" onclick="deleteCurrentPoint()">🗑 מחק</button>
       <button class="btn btn-cancel" onclick="closeModal('editPointModal')">ביטול</button>
@@ -2226,7 +2236,7 @@ function subscribeToPoints() {
   }
 }
 
-async function createPoint({ name, lat, lon, projectId }) {
+async function createPoint({ name, lat, lon, projectId, notes }) {
   if (!state.user) { toast('יש להתחבר כדי לשמור'); return; }
   if (!projectId) { toast('יש לבחור פרוייקט'); return; }
   // Permission gated by the parent project — server rules will also enforce
@@ -2239,6 +2249,7 @@ async function createPoint({ name, lat, lon, projectId }) {
     name: name.trim(),
     lat, lon,
     projectId,
+    notes: (notes || '').trim(),
     createdBy: state.user.uid,
     createdByEmail: (state.user.email || '').toLowerCase(),
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -2278,6 +2289,7 @@ function onAddPointClick() {
   document.getElementById('addPointCoords').textContent =
     `${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)}`;
   document.getElementById('newPointName').value = '';
+  document.getElementById('newPointNotes').value = '';
   populateProjectDropdown(document.getElementById('newPointProject'));
   document.getElementById('addPointModal').classList.add('show');
   setTimeout(() => document.getElementById('newPointName').focus(), 50);
@@ -2288,8 +2300,9 @@ async function confirmAddPoint() {
   if (!name) { toast('הזן שם לנקודה'); return; }
   if (!state.pendingCoords) return;
   const projectId = document.getElementById('newPointProject').value || null;
+  const notes = document.getElementById('newPointNotes').value.trim();
   try {
-    const ref = await createPoint({ name, lat: state.pendingCoords.lat, lon: state.pendingCoords.lon, projectId });
+    const ref = await createPoint({ name, lat: state.pendingCoords.lat, lon: state.pendingCoords.lon, projectId, notes });
     closeModal('addPointModal');
     toast(`נקודה "${name}" נשמרה ✓`);
     state.pendingCoords = null;
@@ -2637,6 +2650,7 @@ function openEditPointModal(point) {
   state.editingPointId = point.id;
   document.getElementById('editPointCoords').textContent = `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
   document.getElementById('editPointName').value = point.name || '';
+  document.getElementById('editPointNotes').value = point.notes || '';
   populateProjectDropdown(document.getElementById('editPointProject'));
   document.getElementById('editPointProject').value = point.projectId || '';
   document.getElementById('editPointModal').classList.add('show');
@@ -2647,9 +2661,10 @@ async function saveEditedPoint() {
   if (!id) return;
   const name = document.getElementById('editPointName').value.trim();
   const projectId = document.getElementById('editPointProject').value || null;
+  const notes = document.getElementById('editPointNotes').value.trim();
   if (!name) { toast('שם לא יכול להיות ריק'); return; }
   try {
-    await updatePointDoc(id, { name, projectId });
+    await updatePointDoc(id, { name, projectId, notes });
     closeModal('editPointModal');
     toast('עודכן ✓');
   } catch (e) {
@@ -3747,6 +3762,10 @@ function renderSheet() {
   if (showCreator) {
     html += `<div class="sheet-creator" id="sheetCreator"><span class="creator-label">הוסיף:</span><span class="creator-name">...</span></div>`;
   }
+  // Notes — free-text note attached to the point, shown only when non-empty
+  if (isSaved && p.notes) {
+    html += `<div class="sheet-notes"><span class="notes-label">📝 הערות</span><div class="notes-body">${escapeHtml(p.notes).replace(/\n/g, '<br>')}</div></div>`;
+  }
 
   // Azimuth (if applicable)
   const az = getAzimuthInfo();
@@ -4470,6 +4489,7 @@ function addUnsavedToCollection() {
   // Pre-fill with the name extracted from the share text (e.g. Waze/WhatsApp paste).
   // Empty if user typed raw coords / picked from map — leaves the field blank.
   document.getElementById('newPointName').value = p.suggestedName || '';
+  document.getElementById('newPointNotes').value = '';
   populateProjectDropdown(document.getElementById('newPointProject'));
   document.getElementById('addPointModal').classList.add('show');
   setTimeout(() => document.getElementById('newPointName').focus(), 50);
