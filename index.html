@@ -331,6 +331,11 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 .leaflet-control-tracking.active{background:var(--primary);color:#fff}
 .leaflet-control-tracking:hover{background:var(--surface2)}
 .leaflet-control-tracking.active:hover{background:var(--primary-dark)}
+/* Full-screen toggle, bottom-right of the map */
+.leaflet-control-fullscreen{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;color:#334155}
+.leaflet-control-fullscreen:hover{background:var(--surface2)}
+.leaflet-control-fullscreen svg{width:18px;height:18px;display:block}
+[data-theme="dark"] .leaflet-control-fullscreen{background:var(--surface);color:var(--text)}
 
 /* Recording control (red dot → black square) + Export control (share arrow) */
 .leaflet-control-record,.leaflet-control-export{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;margin-bottom:6px!important}
@@ -3462,6 +3467,19 @@ function initMap() {
   };
   trackControl.addTo(leafletMap);
 
+  // Full-screen toggle (bottom-right)
+  const fsControl = L.control({ position: 'bottomright' });
+  fsControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'leaflet-control-fullscreen');
+    div.id = 'fullscreenControl';
+    div.innerHTML = ICON_FULLSCREEN_ENTER;
+    div.title = 'מסך מלא';
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.on(div, 'click', toggleFullscreen);
+    return div;
+  };
+  fsControl.addTo(leafletMap);
+
   // Recording control (red dot → black square)
   const recordControl = L.control({ position: 'bottomleft' });
   recordControl.onAdd = function() {
@@ -4502,6 +4520,46 @@ let userAccuracyCircle = null;
 let currentHeading = null;
 let orientationListenerActive = false;
 let firstFix = true;
+
+// ===== Fullscreen toggle =====
+const ICON_FULLSCREEN_ENTER =
+  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+const ICON_FULLSCREEN_EXIT =
+  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>';
+
+function isInFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
+async function toggleFullscreen() {
+  try {
+    if (!isInFullscreen()) {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) await req.call(el);
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) await exit.call(document);
+    }
+  } catch (e) {
+    toast('הדפדפן חסם מסך מלא', 3000);
+  }
+}
+
+// Update icon + relayout the map whenever fullscreen state changes (including
+// when the user presses Esc to exit).
+function onFullscreenChange() {
+  const ctl = document.getElementById('fullscreenControl');
+  if (ctl) {
+    const inFs = isInFullscreen();
+    ctl.innerHTML = inFs ? ICON_FULLSCREEN_EXIT : ICON_FULLSCREEN_ENTER;
+    ctl.title = inFs ? 'יציאה ממסך מלא' : 'מסך מלא';
+  }
+  // Tile pane resize so Leaflet re-renders for the new viewport
+  if (leafletMap) setTimeout(() => leafletMap.invalidateSize(), 100);
+}
+document.addEventListener('fullscreenchange', onFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
 async function toggleTracking() {
   if (watchId !== null) { stopTracking(); return; }
