@@ -63,6 +63,7 @@ body,.app,.app-header,.project-bar,.quick-input,.sheet,.modal-content,.card,.coo
 [data-theme="dark"] .sheet,
 [data-theme="dark"] .modal-content,
 [data-theme="dark"] .leaflet-control-tracking,
+[data-theme="dark"] .leaflet-control-compass,
 [data-theme="dark"] .url-fallback-url,
 [data-theme="dark"] .url-fallback-actions .btn-dismiss-url{background:var(--surface);color:var(--text)}
 [data-theme="dark"] .coord-input:focus{background:var(--surface)}
@@ -333,6 +334,12 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 .leaflet-control-tracking.active{background:var(--primary);color:#fff}
 .leaflet-control-tracking:hover{background:var(--surface2)}
 .leaflet-control-tracking.active:hover{background:var(--primary-dark)}
+/* Compass / rotation control — blue needle that points to true north */
+.leaflet-control-compass{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;margin-bottom:6px!important}
+.leaflet-control-compass:hover{background:var(--surface2)}
+.leaflet-control-compass.compass-on{background:var(--primary)}
+.leaflet-control-compass.compass-on .compass-needle svg path{fill:#fff}
+.compass-needle{width:22px;height:22px;display:flex;align-items:center;justify-content:center;transition:transform .18s ease-out}
 /* Full-screen toggle, bottom-right of the map */
 .leaflet-control-fullscreen{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;color:#334155}
 .leaflet-control-fullscreen:hover{background:var(--surface2)}
@@ -3434,19 +3441,18 @@ function initMap() {
     document.getElementById('leafletMap').innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">לא הצלחתי לטעון מפות</div>';
     return;
   }
-  // rotate:true turns on the rotation engine (leaflet-rotate). In this commit
-  // every rotation *source* stays off, so the map is locked to north (bearing 0)
-  // and nothing changes visually — we only verify the engine doesn't break tiles,
-  // clicks→coords, markers, the recording line or the offline rectangles.
-  // Commit 2 will enable touchRotate + a custom compass button; the built-in
-  // rotateControl/compassBearing handlers stay off (we drive bearing ourselves).
+  // rotate:true turns on the rotation engine (leaflet-rotate). touchRotate lets
+  // two fingers spin the map; shiftKeyRotate is the desktop equivalent (shift+drag).
+  // The built-in rotateControl/compassBearing handlers stay OFF — we drive the
+  // bearing ourselves (compass mode) and add our own compass button, per the
+  // 3-mode spec (north / manual / compass). See setRotationMode().
   leafletMap = L.map('leafletMap', {
     zoomControl: true,
     rotate: true,
     bearing: 0,
     rotateControl: false,
-    touchRotate: false,
-    shiftKeyRotate: false
+    touchRotate: true,
+    shiftKeyRotate: true
   }).setView([31.7857, 35.2007], 9);
   const layers = {
     'מפת רחובות': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM', maxZoom: 19 }),
@@ -3487,6 +3493,21 @@ function initMap() {
     return div;
   };
   trackControl.addTo(leafletMap);
+
+  // Compass / rotation control (bottom-left, by the locate button). A blue needle
+  // that always points to true north; tapping cycles the rotation mode
+  // (north -> compass; manual/compass -> back to north). See setRotationMode().
+  const compassControl = L.control({ position: 'bottomleft' });
+  compassControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'leaflet-control-compass');
+    div.id = 'compassControl';
+    div.title = 'סיבוב מפה — צפון / מצפן';
+    div.innerHTML = '<div id="compassNeedle" class="compass-needle">' + ICON_COMPASS_ARROW + '</div>';
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.on(div, 'click', onCompassClick);
+    return div;
+  };
+  compassControl.addTo(leafletMap);
 
   // Full-screen toggle (bottom-right)
   const fsControl = L.control({ position: 'bottomright' });
@@ -3540,6 +3561,14 @@ function initMap() {
     msg.classList.remove('show'); void msg.offsetWidth; msg.classList.add('show');
   });
 
+  // Keep the compass needle + the user arrow in sync on every rotation, and treat
+  // any rotation we didn't trigger ourselves (two-finger / shift-drag) as "manual".
+  leafletMap.on('rotate', () => {
+    updateCompassNeedle();
+    updateUserMarkerRotation();
+    if (!_programmaticRotate && rotationMode !== 'manual') setRotationMode('manual');
+  });
+  updateCompassNeedle();
   setTimeout(() => leafletMap.invalidateSize(), 100);
 }
 
@@ -4561,6 +4590,79 @@ function toggleFullscreen() {
   if (leafletMap) setTimeout(() => leafletMap.invalidateSize(), 200);
 }
 
+// ========== MAP ROTATION (north / manual / compass) ==========
+// Blue navigation arrow for the compass button; rotated to always point north.
+const ICON_COMPASS_ARROW = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2.5 L18.5 20 L12 16 L5.5 20 Z" fill="#1a56db"/></svg>';
+let rotationMode = 'north';        // 'north' | 'manual' | 'compass'
+let _programmaticRotate = false;   // true while WE call setBearing (vs. a user gesture)
+let _compassRaf = 0;
+let _compassSmoothed = null;
+
+// Wrap bearing changes we initiate, so the 'rotate' listener can tell our own
+// rotations apart from a user's two-finger / shift-drag spin (which means manual).
+function applyBearing(deg) {
+  _programmaticRotate = true;
+  leafletMap.setBearing(deg);
+  _programmaticRotate = false;
+}
+
+function setRotationMode(mode) {
+  rotationMode = mode;
+  const btn = document.getElementById('compassControl');
+  if (btn) btn.classList.toggle('compass-on', mode === 'compass');
+  if (mode !== 'compass') _compassSmoothed = null;
+  if (mode === 'north') {
+    applyBearing(0);
+  } else if (mode === 'compass') {
+    ensureOrientation();
+    if (currentHeading != null) applyBearing(currentHeading);
+  }
+  // 'manual' keeps whatever bearing the gesture already produced.
+  updateCompassNeedle();
+  updateUserMarkerRotation();
+}
+
+// Tap rule: north -> compass; manual or compass -> back to north.
+function onCompassClick() {
+  setRotationMode(rotationMode === 'north' ? 'compass' : 'north');
+}
+
+function updateCompassNeedle() {
+  const n = document.getElementById('compassNeedle');
+  if (n && leafletMap) n.style.transform = `rotate(${-leafletMap.getBearing()}deg)`;
+}
+
+// Compass mode: rotate the map to the device heading — throttled to one frame and
+// smoothed + dead-banded (>=1°) so the map doesn't jitter on noisy sensor data.
+function scheduleCompassBearing() {
+  if (_compassRaf) return;
+  _compassRaf = requestAnimationFrame(() => {
+    _compassRaf = 0;
+    if (rotationMode !== 'compass' || currentHeading == null) return;
+    if (_compassSmoothed == null) {
+      _compassSmoothed = currentHeading;
+    } else {
+      const d = ((currentHeading - _compassSmoothed + 540) % 360) - 180; // shortest signed delta
+      _compassSmoothed = (_compassSmoothed + d * 0.25 + 360) % 360;
+    }
+    const diff = Math.abs(((_compassSmoothed - leafletMap.getBearing() + 540) % 360) - 180);
+    if (diff >= 1) applyBearing(_compassSmoothed);
+  });
+}
+
+// Attach the device-orientation listener once. The iOS permission prompt must be
+// requested inside the user tap that turns compass/tracking on. Shared by the
+// compass button and live tracking.
+async function ensureOrientation() {
+  if (orientationListenerActive) return;
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
+  }
+  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+  window.addEventListener('deviceorientation', handleOrientation, true);
+  orientationListenerActive = true;
+}
+
 async function toggleTracking() {
   if (watchId !== null) { stopTracking(); return; }
   await startTracking();
@@ -4568,14 +4670,7 @@ async function toggleTracking() {
 
 async function startTracking() {
   if (!navigator.geolocation) { toast('GPS לא נתמך'); return; }
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
-  }
-  if (!orientationListenerActive) {
-    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-    window.addEventListener('deviceorientation', handleOrientation, true);
-    orientationListenerActive = true;
-  }
+  await ensureOrientation();
   const ctrl = document.getElementById('trackingControl');
   if (ctrl) ctrl.classList.add('active');
   firstFix = true;
@@ -4635,6 +4730,7 @@ function handleOrientation(e) {
   else if (typeof e.alpha === 'number') h = (360 - e.alpha) % 360;
   else return;
   currentHeading = h;
+  if (rotationMode === 'compass') scheduleCompassBearing();
   updateUserMarkerRotation();
 }
 
@@ -4643,7 +4739,10 @@ function updateUserMarkerRotation() {
   const el = userLocationMarker.getElement();
   if (!el) return;
   const wrap = el.querySelector('.user-arrow-wrap');
-  if (wrap) wrap.style.transform = `rotate(${currentHeading}deg)`;
+  // On-screen heading must account for map rotation: a real-world direction θ
+  // shows at screen angle (θ − bearing). Markers stay upright (leaflet-rotate), so
+  // this CSS rotation IS the net screen rotation.
+  if (wrap) wrap.style.transform = `rotate(${currentHeading - (leafletMap ? leafletMap.getBearing() : 0)}deg)`;
 }
 
 // ========== QR SCANNER ==========
