@@ -14,6 +14,8 @@
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- Map rotation engine (vendored locally so it works offline + isn't subject to network filtering). Must load after Leaflet core — it patches L.Map. -->
+<script src="leaflet-rotate.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
@@ -3432,7 +3434,20 @@ function initMap() {
     document.getElementById('leafletMap').innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">לא הצלחתי לטעון מפות</div>';
     return;
   }
-  leafletMap = L.map('leafletMap', { zoomControl: true }).setView([31.7857, 35.2007], 9);
+  // rotate:true turns on the rotation engine (leaflet-rotate). In this commit
+  // every rotation *source* stays off, so the map is locked to north (bearing 0)
+  // and nothing changes visually — we only verify the engine doesn't break tiles,
+  // clicks→coords, markers, the recording line or the offline rectangles.
+  // Commit 2 will enable touchRotate + a custom compass button; the built-in
+  // rotateControl/compassBearing handlers stay off (we drive bearing ourselves).
+  leafletMap = L.map('leafletMap', {
+    zoomControl: true,
+    rotate: true,
+    bearing: 0,
+    rotateControl: false,
+    touchRotate: false,
+    shiftKeyRotate: false
+  }).setView([31.7857, 35.2007], 9);
   const layers = {
     'מפת רחובות': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM', maxZoom: 19 }),
     'לוויין': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }),
