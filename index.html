@@ -279,13 +279,13 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 
 /* Saved point markers (custom div icons) */
 .saved-point-marker{background:none!important;border:none!important;display:flex;align-items:center;justify-content:center}
-.saved-pin{width:20px;height:20px;background:var(--primary);border:2.5px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4);position:relative;display:flex;align-items:center;justify-content:center}
+.saved-pin{width:16px;height:16px;background:#f59e0b;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.45);position:relative;display:flex;align-items:center;justify-content:center}
 .saved-pin.selected{background:var(--gold);border-color:#fff;transform:scale(1.25);box-shadow:0 0 0 4px rgba(212,160,21,.3),0 2px 8px rgba(0,0,0,.4)}
 .saved-pin .num{color:#fff;font-size:10px;font-weight:800;line-height:1}
 
 /* Active (unsaved) marker */
 .active-point-marker{background:none!important;border:none!important}
-.active-pin{width:22px;height:22px;background:#dc2626;border:2.5px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.active-pin{width:20px;height:20px;background:#f59e0b;border:2.5px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(245,158,11,.25),0 2px 6px rgba(0,0,0,.45)}
 
 /* Profile peak marker */
 .peak-marker{background:none!important;border:none!important;display:flex;align-items:flex-end;justify-content:center}
@@ -296,8 +296,9 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .user-arrow-wrap{width:40px;height:40px;position:relative;display:flex;align-items:center;justify-content:center;transition:transform .18s ease-out}
 .user-arrow-svg{width:30px;height:30px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
 .user-arrow-svg path{fill:var(--primary);stroke:#fff;stroke-width:1.6;stroke-linejoin:round}
-/* Manual location override — orange instead of blue */
-.user-location-marker.manual .user-arrow-svg path{fill:#d97706}
+/* Manual location: stays in the "you" (blue) family but hollow/outlined to read as
+   "approximate / set by hand" — amber is now the saved/active point colour */
+.user-location-marker.manual .user-arrow-svg path{fill:#fff;stroke:var(--primary);stroke-width:2.2}
 .manual-loc-pin{width:34px;height:34px;background:#d97706;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}
 .manual-loc-pin::after{content:'📌';font-size:14px;transform:rotate(45deg)}
 .manual-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#d97706;color:#fff;padding:5px 14px;border-radius:18px;font-size:12px;font-weight:600;z-index:550;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none}
