@@ -292,12 +292,11 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 
 /* User location marker */
 .user-location-marker{background:none!important;border:none!important}
-.user-arrow-wrap{width:40px;height:40px;position:relative;transition:transform .18s ease-out}
-.user-arrow-cone{position:absolute;top:-2px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid rgba(26,86,219,.55);filter:drop-shadow(0 1px 2px rgba(0,0,0,.15))}
-.user-arrow-dot{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:var(--primary);border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.user-arrow-wrap{width:40px;height:40px;position:relative;display:flex;align-items:center;justify-content:center;transition:transform .18s ease-out}
+.user-arrow-svg{width:30px;height:30px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+.user-arrow-svg path{fill:var(--primary);stroke:#fff;stroke-width:1.6;stroke-linejoin:round}
 /* Manual location override — orange instead of blue */
-.user-location-marker.manual .user-arrow-cone{border-bottom-color:rgba(217,119,6,.55)}
-.user-location-marker.manual .user-arrow-dot{background:#d97706}
+.user-location-marker.manual .user-arrow-svg path{fill:#d97706}
 .manual-loc-pin{width:34px;height:34px;background:#d97706;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}
 .manual-loc-pin::after{content:'📌';font-size:14px;transform:rotate(45deg)}
 .manual-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#d97706;color:#fff;padding:5px 14px;border-radius:18px;font-size:12px;font-weight:600;z-index:550;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none}
@@ -3256,7 +3255,7 @@ function setManualLocation(lat, lon) {
   if (userAccuracyCircle) { leafletMap.removeLayer(userAccuracyCircle); userAccuracyCircle = null; }
   const icon = L.divIcon({
     className: 'user-location-marker manual',
-    html: '<div class="user-arrow-wrap"><div class="user-arrow-cone"></div><div class="user-arrow-dot"></div></div>',
+    html: '<div class="user-arrow-wrap"><svg class="user-arrow-svg" viewBox="0 0 24 24"><path d="M12 2 L19.5 21 L12 16.5 L4.5 21 Z"/></svg></div>',
     iconSize: [40, 40], iconAnchor: [20, 20]
   });
   userLocationMarker = L.marker([lat, lon], { icon, zIndexOffset: 1000, interactive: false }).addTo(leafletMap);
@@ -4693,7 +4692,7 @@ async function startTracking() {
     if (!userLocationMarker) {
       const icon = L.divIcon({
         className: 'user-location-marker',
-        html: '<div class="user-arrow-wrap"><div class="user-arrow-cone"></div><div class="user-arrow-dot"></div></div>',
+        html: '<div class="user-arrow-wrap"><svg class="user-arrow-svg" viewBox="0 0 24 24"><path d="M12 2 L19.5 21 L12 16.5 L4.5 21 Z"/></svg></div>',
         iconSize: [40, 40], iconAnchor: [20, 20]
       });
       userLocationMarker = L.marker(latlng, { icon, zIndexOffset: 1000, interactive: false }).addTo(leafletMap);
