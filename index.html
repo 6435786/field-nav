@@ -4595,8 +4595,9 @@ function toggleFullscreen() {
 const ICON_COMPASS_ARROW = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2.5 L18.5 20 L12 16 L5.5 20 Z" fill="#1a56db"/></svg>';
 let rotationMode = 'north';        // 'north' | 'manual' | 'compass'
 let _programmaticRotate = false;   // true while WE call setBearing (vs. a user gesture)
-let _compassRaf = 0;
-let _compassSmoothed = null;
+let headingSmoothed = null;        // low-pass filtered heading, used for display + compass
+let orientationProviding = false;  // true once the device compass has delivered a reading
+let _orientRaf = 0;
 
 // Wrap bearing changes we initiate, so the 'rotate' listener can tell our own
 // rotations apart from a user's two-finger / shift-drag spin (which means manual).
@@ -4610,13 +4611,13 @@ function setRotationMode(mode) {
   rotationMode = mode;
   const btn = document.getElementById('compassControl');
   if (btn) btn.classList.toggle('compass-on', mode === 'compass');
-  if (mode !== 'compass') _compassSmoothed = null;
   if (mode === 'north') {
     applyBearing(0);
   } else if (mode === 'compass') {
     ensureOrientation();
     // Heading-up: rotate the map so the heading is at the top → bearing = -heading.
-    if (currentHeading != null) applyBearing((360 - currentHeading) % 360);
+    const h = (headingSmoothed != null) ? headingSmoothed : currentHeading;
+    if (h != null) applyBearing((360 - h) % 360);
   }
   // 'manual' keeps whatever bearing the gesture already produced.
   updateCompassNeedle();
@@ -4633,22 +4634,25 @@ function updateCompassNeedle() {
   if (n && leafletMap) n.style.transform = `rotate(${leafletMap.getBearing()}deg)`;
 }
 
-// Compass mode: rotate the map to the device heading — throttled to one frame and
-// smoothed + dead-banded (>=1°) so the map doesn't jitter on noisy sensor data.
-function scheduleCompassBearing() {
-  if (_compassRaf) return;
-  _compassRaf = requestAnimationFrame(() => {
-    _compassRaf = 0;
-    if (rotationMode !== 'compass' || currentHeading == null) return;
-    if (_compassSmoothed == null) {
-      _compassSmoothed = currentHeading;
+// rAF-throttled + circular low-pass smoothing. Drives the user arrow in every mode
+// and the map bearing in compass mode, so neither jitters on noisy sensor data.
+function scheduleHeadingUpdate() {
+  if (_orientRaf) return;
+  _orientRaf = requestAnimationFrame(() => {
+    _orientRaf = 0;
+    if (currentHeading == null) return;
+    if (headingSmoothed == null) {
+      headingSmoothed = currentHeading;
     } else {
-      const d = ((currentHeading - _compassSmoothed + 540) % 360) - 180; // shortest signed delta
-      _compassSmoothed = (_compassSmoothed + d * 0.25 + 360) % 360;
+      const d = ((currentHeading - headingSmoothed + 540) % 360) - 180; // shortest signed delta
+      headingSmoothed = (headingSmoothed + d * 0.15 + 360) % 360;        // 0.15 = gentle low-pass
     }
-    const target = (360 - _compassSmoothed) % 360; // heading-up bearing
-    const diff = Math.abs(((target - leafletMap.getBearing() + 540) % 360) - 180);
-    if (diff >= 1) applyBearing(target);
+    updateUserMarkerRotation();
+    if (rotationMode === 'compass') {
+      const target = (360 - headingSmoothed) % 360; // heading-up bearing
+      const diff = Math.abs(((target - leafletMap.getBearing() + 540) % 360) - 180);
+      if (diff >= 1.5) applyBearing(target);         // dead-band so tiny wobble is ignored
+    }
   });
 }
 
@@ -4660,8 +4664,10 @@ async function ensureOrientation() {
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
   }
-  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-  window.addEventListener('deviceorientation', handleOrientation, true);
+  // Listen to ONE source only — absolute (true north) if the device has it, else the
+  // relative event. Subscribing to both makes their frames fight and the heading jitter.
+  const evt = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
+  window.addEventListener(evt, handleOrientation, true);
   orientationListenerActive = true;
 }
 
@@ -4682,7 +4688,8 @@ async function startTracking() {
     const latlng = [latitude, longitude];
     const wasFirstUserFix = !state.livePosition;
     state.livePosition = { lat: latitude, lon: longitude, accuracy };
-    if (typeof heading === 'number' && !isNaN(heading)) currentHeading = heading;
+    // Prefer the device compass; fall back to GPS course only when no compass feed.
+    if (!orientationProviding && typeof heading === 'number' && !isNaN(heading)) { currentHeading = heading; scheduleHeadingUpdate(); }
     if (!userLocationMarker) {
       const icon = L.divIcon({
         className: 'user-location-marker',
@@ -4732,19 +4739,20 @@ function handleOrientation(e) {
   else if (typeof e.alpha === 'number') h = (360 - e.alpha) % 360;
   else return;
   currentHeading = h;
-  if (rotationMode === 'compass') scheduleCompassBearing();
-  updateUserMarkerRotation();
+  orientationProviding = true;
+  scheduleHeadingUpdate();
 }
 
 function updateUserMarkerRotation() {
-  if (!userLocationMarker || currentHeading === null) return;
+  if (!userLocationMarker) return;
   const el = userLocationMarker.getElement();
   if (!el) return;
   const wrap = el.querySelector('.user-arrow-wrap');
+  const h = (headingSmoothed != null) ? headingSmoothed : currentHeading;
   // leaflet-rotate rotates the map CLOCKWISE by bearing (CSS rotate(+bearing)) and
   // markers stay upright, so a real-world direction shows on screen at (heading +
   // bearing) — and this CSS rotation IS that net screen rotation.
-  if (wrap) wrap.style.transform = `rotate(${currentHeading + (leafletMap ? leafletMap.getBearing() : 0)}deg)`;
+  if (wrap && h != null) wrap.style.transform = `rotate(${h + (leafletMap ? leafletMap.getBearing() : 0)}deg)`;
 }
 
 // ========== QR SCANNER ==========
