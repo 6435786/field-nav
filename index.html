@@ -170,6 +170,12 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .app-header .btn-icon-square{width:34px;height:34px;background:rgba(255,255,255,.16);color:#fff;font-size:15px}
 .app-header .btn-icon-square:hover{background:rgba(255,255,255,.28)}
 .app-header .btn-icon-square:disabled{opacity:.4}
+/* Compact the account area so the merged header fits one phone row */
+.app-header{gap:6px;padding:6px 8px}
+.app-header .btn-icon-square{width:32px;height:32px}
+.app-header .auth-pill{padding:3px 5px;gap:3px;background:rgba(255,255,255,.16)}
+.app-header .auth-pill-info span:last-child{display:none} /* hide name — avatar only */
+.app-header .btn-admin{padding:5px 9px;font-size:15px}
 .auth-zone{display:flex;align-items:center;gap:6px}
 .auth-zone{display:flex;align-items:center;gap:7px}
 .auth-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.15);padding:4px 10px 4px 5px;border-radius:30px;font-size:12px;font-weight:600}
@@ -1366,7 +1372,7 @@ function updateAuthUI() {
     // ניהול button sits AFTER the pill in DOM so RTL flex places it visually to
     // the LEFT of the user name — only shown to tier 4+ (admin / super_admin).
     const adminBtnHtml = isAdminUser()
-      ? `<button class="btn-admin" onclick="openAdminPanel()" title="ניהול"><span>⚙️</span><span>ניהול</span></button>`
+      ? `<button class="btn-admin" onclick="openAdminPanel()" title="ניהול" aria-label="ניהול"><span>🛡️</span></button>`
       : '';
     zone.innerHTML = `
       <div class="auth-pill">
