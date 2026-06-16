@@ -4615,7 +4615,8 @@ function setRotationMode(mode) {
     applyBearing(0);
   } else if (mode === 'compass') {
     ensureOrientation();
-    if (currentHeading != null) applyBearing(currentHeading);
+    // Heading-up: rotate the map so the heading is at the top → bearing = -heading.
+    if (currentHeading != null) applyBearing((360 - currentHeading) % 360);
   }
   // 'manual' keeps whatever bearing the gesture already produced.
   updateCompassNeedle();
@@ -4629,7 +4630,7 @@ function onCompassClick() {
 
 function updateCompassNeedle() {
   const n = document.getElementById('compassNeedle');
-  if (n && leafletMap) n.style.transform = `rotate(${-leafletMap.getBearing()}deg)`;
+  if (n && leafletMap) n.style.transform = `rotate(${leafletMap.getBearing()}deg)`;
 }
 
 // Compass mode: rotate the map to the device heading — throttled to one frame and
@@ -4645,8 +4646,9 @@ function scheduleCompassBearing() {
       const d = ((currentHeading - _compassSmoothed + 540) % 360) - 180; // shortest signed delta
       _compassSmoothed = (_compassSmoothed + d * 0.25 + 360) % 360;
     }
-    const diff = Math.abs(((_compassSmoothed - leafletMap.getBearing() + 540) % 360) - 180);
-    if (diff >= 1) applyBearing(_compassSmoothed);
+    const target = (360 - _compassSmoothed) % 360; // heading-up bearing
+    const diff = Math.abs(((target - leafletMap.getBearing() + 540) % 360) - 180);
+    if (diff >= 1) applyBearing(target);
   });
 }
 
@@ -4739,10 +4741,10 @@ function updateUserMarkerRotation() {
   const el = userLocationMarker.getElement();
   if (!el) return;
   const wrap = el.querySelector('.user-arrow-wrap');
-  // On-screen heading must account for map rotation: a real-world direction θ
-  // shows at screen angle (θ − bearing). Markers stay upright (leaflet-rotate), so
-  // this CSS rotation IS the net screen rotation.
-  if (wrap) wrap.style.transform = `rotate(${currentHeading - (leafletMap ? leafletMap.getBearing() : 0)}deg)`;
+  // leaflet-rotate rotates the map CLOCKWISE by bearing (CSS rotate(+bearing)) and
+  // markers stay upright, so a real-world direction shows on screen at (heading +
+  // bearing) — and this CSS rotation IS that net screen rotation.
+  if (wrap) wrap.style.transform = `rotate(${currentHeading + (leafletMap ? leafletMap.getBearing() : 0)}deg)`;
 }
 
 // ========== QR SCANNER ==========
