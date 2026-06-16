@@ -241,7 +241,8 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .quick-secondary{display:flex;gap:8px}
 .btn-quick{flex:1;padding:8px;background:var(--surface2);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
 .btn-quick:hover{background:var(--border)}
-.detected-mini{font-size:11px;color:var(--success);font-weight:600;text-align:center;min-height:14px}
+.detected-mini{font-size:11px;color:var(--success);font-weight:600;text-align:center}
+.detected-mini:empty{display:none}
 .detected-mini.error{color:var(--danger)}
 
 .url-fallback{background:var(--warn-light);border:1px solid #fbbf24;border-radius:var(--radius-sm);padding:10px 12px;display:none;flex-direction:column;gap:8px}
@@ -2836,7 +2837,11 @@ document.getElementById('coordInput').addEventListener('input', () => {
         updateAddPointBtn();
         return;
       }
-      mini.textContent = `✓ ${r.type}: ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)}`;
+      // Redundant WGS84 echo removed (it's in the point's details, and the pin
+      // moving on the map is confirmation enough for a plain coordinate). Leave the
+      // line empty so `.detected-mini:empty{display:none}` reclaims the row; the
+      // measure/manual hints and link-expansion messages below still use it.
+      mini.textContent = '';
       mini.className = 'detected-mini';
       setActiveUnsavedPoint(r.latLon[0], r.latLon[1], false, r.suggestedName);
       updateAddPointBtn();
