@@ -163,6 +163,13 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .app-header{background:var(--primary);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;box-shadow:0 2px 8px rgba(42,112,104,.25);z-index:100}
 .app-header .icon{font-size:22px}
 .app-header h1{font-size:16px;font-weight:700;flex:1}
+/* Header now holds the project controls (app name removed) — restyle for the teal bar */
+.app-header{gap:7px;padding:7px 10px}
+.app-header .project-select{flex:1;min-width:60px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:13.5px;font-weight:600;padding:7px 28px 7px 10px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23ffffff' stroke-width='2'%3E%3Cpolyline points='3 5 6 8 9 5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 9px center}
+.app-header .project-select option{color:#1e293b}
+.app-header .btn-icon-square{width:34px;height:34px;background:rgba(255,255,255,.16);color:#fff;font-size:15px}
+.app-header .btn-icon-square:hover{background:rgba(255,255,255,.28)}
+.app-header .btn-icon-square:disabled{opacity:.4}
 .auth-zone{display:flex;align-items:center;gap:6px}
 .auth-zone{display:flex;align-items:center;gap:7px}
 .auth-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.15);padding:4px 10px 4px 5px;border-radius:30px;font-size:12px;font-weight:600}
@@ -228,8 +235,11 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .btn-icon-square:disabled{opacity:.4;cursor:not-allowed}
 
 /* Quick input */
-.quick-input{background:var(--surface);padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;flex-shrink:0}
-.quick-input-row{display:flex;gap:8px;align-items:stretch}
+.quick-input{background:var(--surface);padding:7px 10px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.quick-input-row{display:flex;gap:6px;align-items:stretch}
+.qi-search{flex-shrink:0;width:40px;display:flex;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border-strong);border-radius:var(--radius-sm);color:var(--primary);cursor:pointer;padding:0}
+.qi-search:hover{background:var(--primary-light)}
+.qi-search svg{width:19px;height:19px;display:block}
 .coord-input{flex:1;min-width:0;padding:10px 12px;border:2px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:15px;font-weight:600;text-align:center;background:var(--surface2);color:var(--text);direction:ltr}
 .coord-input:focus{outline:none;border-color:var(--primary);background:#fff}
 .coord-input::placeholder{font-weight:400;color:var(--text-light);font-size:13px;text-align:center}
@@ -360,6 +370,12 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 .map-search-result .msr-icon{flex-shrink:0;font-size:15px}
 .map-search-result .msr-name{flex:1;color:var(--text);line-height:1.25}
 .map-search-status{padding:12px;text-align:center;color:var(--text-muted);font-size:13px}
+/* Uniform frosted style for ALL floating map controls (semi-transparent, blurred,
+   stays legible over any map). Icons keep their own colours. */
+.leaflet-control-tracking,.leaflet-control-compass,.leaflet-control-fullscreen,.leaflet-control-record,.leaflet-control-export,.leaflet-control-search,.leaflet-control-layers,.leaflet-bar a{
+  background:rgba(255,255,255,.82)!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+[data-theme="dark"] .leaflet-control-tracking,[data-theme="dark"] .leaflet-control-compass,[data-theme="dark"] .leaflet-control-fullscreen,[data-theme="dark"] .leaflet-control-record,[data-theme="dark"] .leaflet-control-export,[data-theme="dark"] .leaflet-control-search,[data-theme="dark"] .leaflet-control-layers,[data-theme="dark"] .leaflet-bar a{
+  background:rgba(30,41,59,.78)!important;color:#fff}
 /* Full-screen toggle, bottom-right of the map */
 .leaflet-control-fullscreen{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;color:#334155}
 .leaflet-control-fullscreen:hover{background:var(--surface2)}
@@ -687,10 +703,15 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 <body>
 <div class="app">
 
-  <!-- HEADER -->
+  <!-- HEADER (app name removed; project controls folded in to save a row) -->
   <div class="app-header">
-    <span class="icon">🧭</span>
-    <h1>ניווט רחפנים</h1>
+    <select class="project-select" id="projectSelect" onchange="onProjectChange()">
+      <option value="__all">כללי</option>
+    </select>
+    <button class="btn-icon-square" id="editProjectBtn" onclick="openEditProjectModal()" title="הגדרות פרוייקט">⚙️</button>
+    <button class="btn-icon-square" id="addProjectBtn" onclick="openNewProjectModal()" title="פרוייקט חדש">➕</button>
+    <button class="btn-icon-square" id="moreMenuBtn" onclick="toggleMoreMenu(event)" title="ייבוא / ייצוא">⋮</button>
+    <input type="file" id="gpxFileInput" accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml,text/xml,application/xml" style="display:none" onchange="onGpxFileChosen(event)">
     <div class="auth-zone" id="authZone">
       <button class="btn-signin-small" onclick="signInWithGoogle()" id="signInBtn">🔑 התחבר</button>
     </div>
@@ -706,17 +727,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <button class="install-x" onclick="dismissInstallBanner()" aria-label="סגור">×</button>
   </div>
 
-  <!-- PROJECT BAR -->
-  <div class="project-bar">
-    <span class="label">פרוייקט:</span>
-    <select class="project-select" id="projectSelect" onchange="onProjectChange()">
-      <option value="__all">כללי</option>
-    </select>
-    <button class="btn-icon-square" id="editProjectBtn" onclick="openEditProjectModal()" title="הגדרות פרוייקט" style="background:var(--surface2);color:var(--text-muted)">⚙️</button>
-    <button class="btn-icon-square" id="addProjectBtn" onclick="openNewProjectModal()" title="פרוייקט חדש">➕</button>
-    <button class="btn-icon-square" id="moreMenuBtn" onclick="toggleMoreMenu(event)" title="ייבוא / ייצוא" style="background:var(--surface2);color:var(--text-muted)">⋮</button>
-    <input type="file" id="gpxFileInput" accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml,text/xml,application/xml" style="display:none" onchange="onGpxFileChosen(event)">
-  </div>
+  <!-- (Project controls moved up into the header) -->
   <div class="more-menu" id="moreMenu" style="display:none">
     <button onclick="openImportFile()">📥 ייבוא GPX / KML</button>
     <button onclick="exportCurrentAsGPX()">📤 ייצוא הפרוייקט הנוכחי</button>
@@ -756,9 +767,10 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 </div>
 
   <!-- QUICK INPUT -->
-  <div class="quick-input">
+  <div class="quick-input" id="quickInput">
     <div class="quick-input-row">
-      <input type="text" class="coord-input" id="coordInput" placeholder="הקלד קואורדינטות או הדבק קישור גוגל מפות..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="qi-search" onclick="openMapSearch()" title="חיפוש מקום" aria-label="חיפוש מקום"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+      <input type="text" class="coord-input" id="coordInput" placeholder="קואורדינטות / קישור גוגל מפות..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <button class="btn-clear-all" onclick="clearEverything()" id="clearAllBtn" title="נקה הכל">נקה</button>
       <button class="btn-add-point" id="addPointBtn" onclick="onAddPointClick()" disabled>➕ הוסף</button>
     </div>
@@ -3564,7 +3576,7 @@ function initMap() {
     L.DomEvent.on(div, 'click', openMapSearch);
     return div;
   };
-  searchControl.addTo(leafletMap);
+  // searchControl.addTo(leafletMap); // search now lives in the coordinate bar (🔍)
 
   // Recording control (red dot → black square)
   const recordControl = L.control({ position: 'bottomleft' });
