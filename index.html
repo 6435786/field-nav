@@ -345,13 +345,13 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 .leaflet-control-search:hover{background:var(--surface2)}
 .leaflet-control-search svg{width:20px;height:20px;display:block}
 [data-theme="dark"] .leaflet-control-search{background:var(--surface);color:var(--text)}
-.map-search{position:absolute;top:0;left:0;right:0;z-index:1200;padding:8px;pointer-events:none;display:none}
-.map-search.show{display:block}
-.map-search-bar{pointer-events:auto;display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.3);padding:5px 8px}
-.map-search-input{flex:1;border:none;background:transparent;color:var(--text);font-size:15px;font-family:inherit;outline:none;min-width:0;padding:5px 2px}
-.map-search-close{border:none;background:transparent;color:var(--text-muted);font-size:18px;cursor:pointer;padding:4px 8px;line-height:1;border-radius:6px}
+.map-search{position:fixed;left:0;right:0;top:0;height:100%;z-index:2000;display:none;flex-direction:column;gap:6px;padding:8px;background:rgba(15,23,42,.45)}
+.map-search.show{display:flex}
+.map-search-bar{display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.4);padding:6px 8px;flex-shrink:0}
+.map-search-input{flex:1;border:none;background:transparent;color:var(--text);font-size:16px;font-family:inherit;outline:none;min-width:0;padding:6px 2px}
+.map-search-close{border:none;background:transparent;color:var(--text-muted);font-size:20px;cursor:pointer;padding:4px 10px;line-height:1;border-radius:6px}
 .map-search-close:hover{background:var(--surface2)}
-.map-search-results{pointer-events:auto;margin-top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.3);max-height:46vh;overflow-y:auto;display:none}
+.map-search-results{background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.4);overflow-y:auto;-webkit-overflow-scrolling:touch;flex:0 1 auto;min-height:0;display:none}
 .map-search-results.show{display:block}
 .map-search-result{display:flex;align-items:center;gap:9px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px}
 .map-search-result:last-child{border-bottom:none}
@@ -781,7 +781,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <!-- MAP -->
   <div class="map-area">
     <div id="leafletMap"></div>
-    <div class="map-search" id="mapSearch">
+    <div class="map-search" id="mapSearch" onclick="if(event.target===this)closeMapSearch()">
       <div class="map-search-bar">
         <button class="map-search-close" onclick="closeMapSearch()" title="סגור">✕</button>
         <input type="text" id="mapSearchInput" class="map-search-input" placeholder="חפש מקום: נחל אוג, עין גדי…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="onSearchInput()" onkeydown="if(event.key==='Escape'){closeMapSearch()}else if(event.key==='Enter'){event.preventDefault();onSearchEnter()}">
@@ -4650,13 +4650,37 @@ function openMapSearch() {
   box.classList.remove('show'); box.innerHTML = '';
   const inp = document.getElementById('mapSearchInput');
   inp.value = '';
-  setTimeout(() => inp.focus(), 60);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncSearchViewport);
+    window.visualViewport.addEventListener('scroll', syncSearchViewport);
+  }
+  setTimeout(() => { inp.focus(); syncSearchViewport(); }, 60);
 }
 
 function closeMapSearch() {
-  document.getElementById('mapSearch').classList.remove('show');
+  const wrap = document.getElementById('mapSearch');
+  wrap.classList.remove('show');
+  wrap.style.height = ''; wrap.style.top = '';
+  document.getElementById('mapSearchResults').style.maxHeight = '';
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', syncSearchViewport);
+    window.visualViewport.removeEventListener('scroll', syncSearchViewport);
+  }
   clearTimeout(_searchTimer);
   _searchSeq++; // drop any in-flight result
+}
+
+// Keep the full-screen search sized to the area ABOVE the on-screen keyboard, so
+// results never hide behind it (visualViewport shrinks when the keyboard opens).
+function syncSearchViewport() {
+  const wrap = document.getElementById('mapSearch');
+  if (!wrap.classList.contains('show')) return;
+  const vv = window.visualViewport;
+  if (vv) { wrap.style.height = vv.height + 'px'; wrap.style.top = vv.offsetTop + 'px'; }
+  const bar = wrap.querySelector('.map-search-bar');
+  const box = document.getElementById('mapSearchResults');
+  const avail = wrap.clientHeight - (bar ? bar.offsetHeight : 48) - 24; // minus bar + padding/gap
+  box.style.maxHeight = Math.max(120, avail) + 'px';
 }
 
 function onSearchInput() {
