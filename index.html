@@ -340,6 +340,25 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 .leaflet-control-compass.compass-on{background:var(--primary)}
 .leaflet-control-compass.compass-on .compass-needle svg path{fill:#fff}
 .compass-needle{width:22px;height:22px;display:flex;align-items:center;justify-content:center;transition:transform .18s ease-out}
+/* Place-search control + overlay */
+.leaflet-control-search{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;color:#334155}
+.leaflet-control-search:hover{background:var(--surface2)}
+.leaflet-control-search svg{width:20px;height:20px;display:block}
+[data-theme="dark"] .leaflet-control-search{background:var(--surface);color:var(--text)}
+.map-search{position:absolute;top:0;left:0;right:0;z-index:1200;padding:8px;pointer-events:none;display:none}
+.map-search.show{display:block}
+.map-search-bar{pointer-events:auto;display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.3);padding:5px 8px}
+.map-search-input{flex:1;border:none;background:transparent;color:var(--text);font-size:15px;font-family:inherit;outline:none;min-width:0;padding:5px 2px}
+.map-search-close{border:none;background:transparent;color:var(--text-muted);font-size:18px;cursor:pointer;padding:4px 8px;line-height:1;border-radius:6px}
+.map-search-close:hover{background:var(--surface2)}
+.map-search-results{pointer-events:auto;margin-top:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.3);max-height:46vh;overflow-y:auto;display:none}
+.map-search-results.show{display:block}
+.map-search-result{display:flex;align-items:center;gap:9px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px}
+.map-search-result:last-child{border-bottom:none}
+.map-search-result:hover,.map-search-result:active{background:var(--surface2)}
+.map-search-result .msr-icon{flex-shrink:0;font-size:15px}
+.map-search-result .msr-name{flex:1;color:var(--text);line-height:1.25}
+.map-search-status{padding:12px;text-align:center;color:var(--text-muted);font-size:13px}
 /* Full-screen toggle, bottom-right of the map */
 .leaflet-control-fullscreen{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;color:#334155}
 .leaflet-control-fullscreen:hover{background:var(--surface2)}
@@ -762,6 +781,13 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <!-- MAP -->
   <div class="map-area">
     <div id="leafletMap"></div>
+    <div class="map-search" id="mapSearch">
+      <div class="map-search-bar">
+        <button class="map-search-close" onclick="closeMapSearch()" title="סגור">✕</button>
+        <input type="text" id="mapSearchInput" class="map-search-input" placeholder="חפש מקום: נחל אוג, עין גדי…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="onSearchInput()" onkeydown="if(event.key==='Escape'){closeMapSearch()}else if(event.key==='Enter'){event.preventDefault();onSearchEnter()}">
+      </div>
+      <div class="map-search-results" id="mapSearchResults"></div>
+    </div>
     <div class="map-pin-msg" id="mapPinMsg">📍 נבחרה נקודה</div>
     <button class="show-sheet-btn" id="showSheetBtn" onclick="reopenActivePointSheet()">📍 הצג פרטים</button>
     <div class="manual-banner" id="manualBanner">
@@ -3526,6 +3552,19 @@ function initMap() {
   };
   fsControl.addTo(leafletMap);
 
+  // Place-search control (top-right) — opens the search bar overlaid on the map.
+  const searchControl = L.control({ position: 'topright' });
+  searchControl.onAdd = function() {
+    const div = L.DomUtil.create('div', 'leaflet-control-search');
+    div.id = 'searchControl';
+    div.title = 'חיפוש מקום';
+    div.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.on(div, 'click', openMapSearch);
+    return div;
+  };
+  searchControl.addTo(leafletMap);
+
   // Recording control (red dot → black square)
   const recordControl = L.control({ position: 'bottomleft' });
   recordControl.onAdd = function() {
@@ -4596,6 +4635,86 @@ function toggleFullscreen() {
     ctl.title = on ? 'יציאה ממסך מפה מורחב' : 'מסך מפה מורחב';
   }
   if (leafletMap) setTimeout(() => leafletMap.invalidateSize(), 200);
+}
+
+// ===== Place search (Israel Hiking geocoder) =====
+// GET israelhiking.osm.org.il/api/Search/{term}?language=he — same host as the
+// "שבילי ישראל" tile layer. Returns [{ displayName, title, location:{lat,lng}, ... }].
+const IHM_SEARCH_URL = 'https://israelhiking.osm.org.il/api/Search/';
+let _searchTimer = null;
+let _searchSeq = 0;   // bumped to invalidate stale/in-flight queries
+
+function openMapSearch() {
+  document.getElementById('mapSearch').classList.add('show');
+  const box = document.getElementById('mapSearchResults');
+  box.classList.remove('show'); box.innerHTML = '';
+  const inp = document.getElementById('mapSearchInput');
+  inp.value = '';
+  setTimeout(() => inp.focus(), 60);
+}
+
+function closeMapSearch() {
+  document.getElementById('mapSearch').classList.remove('show');
+  clearTimeout(_searchTimer);
+  _searchSeq++; // drop any in-flight result
+}
+
+function onSearchInput() {
+  clearTimeout(_searchTimer);
+  const term = document.getElementById('mapSearchInput').value.trim();
+  const box = document.getElementById('mapSearchResults');
+  if (term.length < 2) { box.classList.remove('show'); box.innerHTML = ''; return; }
+  _searchTimer = setTimeout(() => runPlaceSearch(term), 350);
+}
+
+function onSearchEnter() {
+  clearTimeout(_searchTimer);
+  const term = document.getElementById('mapSearchInput').value.trim();
+  if (term.length >= 2) runPlaceSearch(term);
+}
+
+async function runPlaceSearch(term) {
+  const box = document.getElementById('mapSearchResults');
+  box.classList.add('show');
+  if (!navigator.onLine) { box.innerHTML = '<div class="map-search-status">אין חיבור — חיפוש לא זמין</div>'; return; }
+  const seq = ++_searchSeq;
+  box.innerHTML = '<div class="map-search-status">מחפש…</div>';
+  try {
+    const res = await fetch(IHM_SEARCH_URL + encodeURIComponent(term) + '?language=he');
+    if (!res.ok) throw new Error('http ' + res.status);
+    const data = await res.json();
+    if (seq !== _searchSeq) return; // superseded by a newer query (or panel closed)
+    renderSearchResults(Array.isArray(data) ? data : []);
+  } catch (e) {
+    if (seq !== _searchSeq) return;
+    box.innerHTML = '<div class="map-search-status">החיפוש נכשל. נסה שוב.</div>';
+  }
+}
+
+function renderSearchResults(items) {
+  const box = document.getElementById('mapSearchResults');
+  const valid = items.filter(it => it && it.location && typeof it.location.lat === 'number' && typeof it.location.lng === 'number');
+  if (!valid.length) { box.innerHTML = '<div class="map-search-status">לא נמצאו תוצאות</div>'; return; }
+  box.innerHTML = '';
+  valid.slice(0, 12).forEach(it => {
+    const row = document.createElement('div');
+    row.className = 'map-search-result';
+    const name = it.displayName || it.title || 'מקום';
+    const icon = document.createElement('span'); icon.className = 'msr-icon'; icon.textContent = '📍';
+    const label = document.createElement('span'); label.className = 'msr-name'; label.textContent = name;
+    row.appendChild(icon); row.appendChild(label);
+    row.addEventListener('click', () => selectSearchResult(it.location.lat, it.location.lng, name));
+    box.appendChild(row);
+  });
+}
+
+function selectSearchResult(lat, lng, name) {
+  closeMapSearch();
+  disableFollow();
+  leafletMap.setView([lat, lng], 15, { animate: true });
+  setActiveUnsavedPoint(lat, lng, true, name); // true = view already set; name → suggested point name
+  const msg = document.getElementById('mapPinMsg');
+  if (msg) { msg.classList.remove('show'); void msg.offsetWidth; msg.classList.add('show'); }
 }
 
 // ========== MAP ROTATION (north / manual / compass) ==========

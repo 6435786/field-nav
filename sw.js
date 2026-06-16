@@ -1,6 +1,6 @@
 // field-nav service worker — offline shell + cached library code
 // Bump CACHE_VERSION on every release that ships changes to the cached files.
-const CACHE_VERSION = 'v81';
+const CACHE_VERSION = 'v82';
 const SHELL_CACHE = `fieldnav-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `fieldnav-runtime-${CACHE_VERSION}`;
 // Map tiles live in a STABLE, unversioned cache so they survive app updates.
@@ -62,7 +62,9 @@ self.addEventListener('fetch', event => {
   const url = new URL(req.url);
 
   // Map tiles — cache-first with rolling cache
-  const isTile = /tile\.openstreetmap|server\.arcgisonline\.com|opentopomap|israelhiking\.osm\.org\.il/.test(url.host + url.pathname);
+  // NOTE: match the IHM *tiles* path only (/Hebrew/Tiles/...), NOT israelhiking as a
+  // whole — otherwise the place-search API (/api/Search) would be cached as a tile.
+  const isTile = /tile\.openstreetmap|server\.arcgisonline\.com|opentopomap|israelhiking\.osm\.org\.il\/Hebrew/.test(url.host + url.pathname);
   if (isTile) {
     event.respondWith(cacheFirst(req, TILE_CACHE)); // stable cache — persists across updates
     return;
