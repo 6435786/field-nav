@@ -3567,6 +3567,9 @@ function initMap() {
     updateUserMarkerRotation();
     if (!_programmaticRotate && rotationMode !== 'manual') setRotationMode('manual');
   });
+  // Dragging the map by hand turns off follow (like Google Maps). dragstart fires
+  // only on a user pan — not on our programmatic panTo/setView, nor on rotation.
+  leafletMap.on('dragstart', () => disableFollow());
   updateCompassNeedle();
   setTimeout(() => leafletMap.invalidateSize(), 100);
 }
@@ -4569,6 +4572,7 @@ let userAccuracyCircle = null;
 let currentHeading = null;
 let orientationListenerActive = false;
 let firstFix = true;
+let following = false;   // auto-center on the user's position (toggled by 🎯 / off on drag)
 
 // ===== Map "fullscreen" toggle — IN-APP, not browser fullscreen =====
 // Toggles a body class that hides the project bar + input row so the map
@@ -4671,15 +4675,41 @@ async function ensureOrientation() {
 }
 
 async function toggleTracking() {
-  if (watchId !== null) { stopTracking(); return; }
-  await startTracking();
+  if (watchId === null) {
+    // First press: start GPS + marker, then follow.
+    await startTracking();
+    if (watchId !== null) enableFollow();   // startTracking bails if geolocation is missing
+    return;
+  }
+  // Tracking already on → 🎯 just toggles follow (GPS + marker stay on).
+  if (following) disableFollow();
+  else enableFollow();
+}
+
+// ===== Follow (auto-center on the user) =====
+function enableFollow() {
+  following = true;
+  // Entry rule: manual -> compass; north/compass keep their current mode.
+  if (rotationMode === 'manual') setRotationMode('compass');
+  // Re-engaging after a drag (a fix already exists) — recenter immediately.
+  if (state.livePosition) leafletMap.setView([state.livePosition.lat, state.livePosition.lon], Math.max(leafletMap.getZoom(), 16), { animate: true });
+  updateLocateButton();
+}
+
+function disableFollow() {
+  if (!following) return;
+  following = false;
+  updateLocateButton();
+}
+
+function updateLocateButton() {
+  const ctrl = document.getElementById('trackingControl');
+  if (ctrl) ctrl.classList.toggle('active', following);
 }
 
 async function startTracking() {
   if (!navigator.geolocation) { toast('GPS לא נתמך'); return; }
   await ensureOrientation();
-  const ctrl = document.getElementById('trackingControl');
-  if (ctrl) ctrl.classList.add('active');
   firstFix = true;
   toast('מאתר מיקום...', 1500);
   watchId = navigator.geolocation.watchPosition(pos => {
@@ -4702,9 +4732,9 @@ async function startTracking() {
       userAccuracyCircle.setLatLng(latlng);
       userAccuracyCircle.setRadius(accuracy);
     }
-    if (firstFix) {
-      leafletMap.setView(latlng, Math.max(leafletMap.getZoom(), 16));
-      firstFix = false;
+    if (following) {
+      if (firstFix) { leafletMap.setView(latlng, Math.max(leafletMap.getZoom(), 16)); firstFix = false; }
+      else leafletMap.panTo(latlng, { animate: true });
     }
     updateUserMarkerRotation();
     refreshAzimuth();
@@ -4727,6 +4757,7 @@ function stopTracking() {
   if (userLocationMarker) { leafletMap.removeLayer(userLocationMarker); userLocationMarker = null; }
   if (userAccuracyCircle) { leafletMap.removeLayer(userAccuracyCircle); userAccuracyCircle = null; }
   state.livePosition = null;
+  following = false;
   const ctrl = document.getElementById('trackingControl');
   if (ctrl) ctrl.classList.remove('active');
   refreshAzimuth();
