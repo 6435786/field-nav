@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<meta name="theme-color" content="#1a56db">
+<meta name="theme-color" content="#2a7068">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -26,7 +26,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --primary:#1a56db;--primary-dark:#1240a8;--primary-light:#e8f0fe;
+  --primary:#2a7068;--primary-dark:#1d524c;--primary-light:#dcebe8;--location:#1a56db;
   --success:#059669;--success-light:#d1fae5;
   --danger:#dc2626;--danger-light:#fee2e2;
   --info:#0891b2;--info-light:#cffafe;
@@ -41,7 +41,7 @@
   --map-tile-filter:none;
 }
 [data-theme="dark"]{
-  --primary:#3b82f6;--primary-dark:#2563eb;--primary-light:rgba(59,130,246,.2);
+  --primary:#1f8a7e;--primary-dark:#176b62;--primary-light:rgba(31,138,126,.22);--location:#3b82f6;
   --success:#10b981;--success-light:rgba(16,185,129,.18);
   --danger:#ef4444;--danger-light:rgba(239,68,68,.18);
   --info:#22d3ee;--info-light:rgba(34,211,238,.16);
@@ -79,7 +79,7 @@ body,.app,.app-header,.project-bar,.quick-input,.sheet,.modal-content,.card,.coo
 [data-theme="dark"] .btn-google-big:hover{background:#f1f5f9}
 /* Install banner's "התקן" button: white bg + primary text — primary in dark
    is lighter blue, contrast on white is poor. Force a darker blue. */
-[data-theme="dark"] .install-banner .install-btn{color:#1a56db}
+[data-theme="dark"] .install-banner .install-btn{color:var(--primary)}
 /* Make help/muted text inside modals brighter for dark theme */
 [data-theme="dark"] .modal-content p,
 [data-theme="dark"] .auth-modal-content p,
@@ -160,7 +160,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 }
 
 /* Header */
-.app-header{background:var(--primary);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;box-shadow:0 2px 8px rgba(26,86,219,.25);z-index:100}
+.app-header{background:var(--primary);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;box-shadow:0 2px 8px rgba(42,112,104,.25);z-index:100}
 .app-header .icon{font-size:22px}
 .app-header h1{font-size:16px;font-weight:700;flex:1}
 .auth-zone{display:flex;align-items:center;gap:6px}
@@ -181,7 +181,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 /* Auth banner (when not signed in) */
 .auth-banner{background:var(--warn-light);color:#7c4a05;padding:8px 14px;font-size:12px;font-weight:600;text-align:center;border-bottom:1px solid #fde68a;display:flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0}
 .auth-banner .lock-icon{font-size:14px}
-.install-banner{background:linear-gradient(90deg,#1a56db,#2563eb);color:#fff;padding:9px 14px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:9px;flex-shrink:0;border-bottom:1px solid rgba(0,0,0,.1)}
+.install-banner{background:linear-gradient(90deg,#2a7068,#1d524c);color:#fff;padding:9px 14px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:9px;flex-shrink:0;border-bottom:1px solid rgba(0,0,0,.1)}
 .install-banner .install-icon{font-size:16px;flex-shrink:0}
 .install-banner .install-msg{flex:1;font-size:12.5px;line-height:1.3}
 .install-banner .install-btn{background:#fff;color:var(--primary);border:none;padding:6px 14px;border-radius:18px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;flex-shrink:0}
@@ -204,7 +204,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .dl-summary .num{font-weight:800;color:var(--primary)}
 .dl-progress{margin-top:14px}
 .dl-bar{height:14px;background:var(--surface2);border-radius:7px;overflow:hidden;border:1px solid var(--border)}
-.dl-bar-fill{height:100%;width:0;background:linear-gradient(90deg,var(--primary),#2563eb);transition:width .25s}
+.dl-bar-fill{height:100%;width:0;background:linear-gradient(90deg,var(--primary),var(--primary-dark));transition:width .25s}
 .dl-progress-text{font-size:12.5px;color:var(--text-muted);margin-top:6px;text-align:center}
 .offline-rect-corner{background:#dc2626!important;border:none!important;border-radius:50%!important;width:14px!important;height:14px!important}
 .more-menu button{display:block;width:100%;text-align:right;padding:11px 14px;background:#fff;border:none;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border)}
@@ -235,7 +235,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .coord-input::placeholder{font-weight:400;color:var(--text-light);font-size:13px;text-align:center}
 .btn-clear-all{padding:0 10px;background:transparent;color:var(--text-muted);border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .btn-clear-all:hover{background:var(--surface2);color:var(--text)}
-.btn-add-point{padding:0 14px;background:var(--success);color:#fff;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0}
+.btn-add-point{padding:0 14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0}
 .btn-add-point:hover{background:#047857}
 .btn-add-point:disabled{opacity:.5;cursor:not-allowed}
 .quick-secondary{display:flex;gap:8px}
@@ -259,7 +259,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .map-area{flex:1;position:relative;min-height:200px;background:var(--surface2)}
 #leafletMap{position:absolute;inset:0;width:100%;height:100%;z-index:0}
 .map-pin-msg{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.85);color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;z-index:500;pointer-events:none;white-space:nowrap;display:none}
-.show-sheet-btn{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;border:none;border-radius:24px;padding:11px 22px;font-family:inherit;font-size:14.5px;font-weight:800;cursor:pointer;box-shadow:0 5px 18px rgba(26,86,219,.45),0 2px 5px rgba(0,0,0,.25);z-index:550;display:none;align-items:center;gap:7px;transition:top .2s}
+.show-sheet-btn{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;border:none;border-radius:24px;padding:11px 22px;font-family:inherit;font-size:14.5px;font-weight:800;cursor:pointer;box-shadow:0 5px 18px rgba(42,112,104,.45),0 2px 5px rgba(0,0,0,.25);z-index:550;display:none;align-items:center;gap:7px;transition:top .2s}
 .show-sheet-btn.visible{display:inline-flex}
 .show-sheet-btn:active{transform:translateX(-50%) scale(.97)}
 /* When any top-of-map banner is visible (recording / measure / manual-pick / manual-active),
@@ -274,7 +274,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .leaflet-control-attribution{font-size:9px!important;direction:ltr;max-width:60vw}
 
 /* Point label tooltip on map */
-.point-label{background:rgba(26,86,219,.92);color:#fff;border:none;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:700;font-family:'Heebo',sans-serif;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.point-label{background:rgba(42,112,104,.92);color:#fff;border:none;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:700;font-family:'Heebo',sans-serif;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .point-label::before{display:none}
 
 /* Saved point markers (custom div icons) */
@@ -295,10 +295,10 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .user-location-marker{background:none!important;border:none!important}
 .user-arrow-wrap{width:40px;height:40px;position:relative;display:flex;align-items:center;justify-content:center;transition:transform .18s ease-out}
 .user-arrow-svg{width:30px;height:30px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
-.user-arrow-svg path{fill:var(--primary);stroke:#fff;stroke-width:1.6;stroke-linejoin:round}
+.user-arrow-svg path{fill:var(--location);stroke:#fff;stroke-width:1.6;stroke-linejoin:round}
 /* Manual location: stays in the "you" (blue) family but hollow/outlined to read as
    "approximate / set by hand" — amber is now the saved/active point colour */
-.user-location-marker.manual .user-arrow-svg path{fill:#fff;stroke:var(--primary);stroke-width:2.2}
+.user-location-marker.manual .user-arrow-svg path{fill:#fff;stroke:var(--location);stroke-width:2.2}
 .manual-loc-pin{width:34px;height:34px;background:#d97706;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}
 .manual-loc-pin::after{content:'📌';font-size:14px;transform:rotate(45deg)}
 .manual-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#d97706;color:#fff;padding:5px 14px;border-radius:18px;font-size:12px;font-weight:600;z-index:550;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none}
@@ -434,7 +434,7 @@ body.map-fullscreen .quick-input{display:none!important}
 .azimuth-hint{font-size:10.5px;color:var(--text-muted);margin-top:3px}
 
 /* Primary action button */
-.btn-primary-big{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;box-shadow:0 2px 6px rgba(26,86,219,.3)}
+.btn-primary-big{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius);font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;box-shadow:0 2px 6px rgba(42,112,104,.3)}
 .btn-primary-big:hover{background:var(--primary-dark)}
 .btn-primary-big:active{transform:scale(.98)}
 
@@ -485,7 +485,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .nav-info-row .niv .niv-sub .up{color:var(--success);font-weight:800}
 .nav-info-row .niv .niv-sub .down{color:var(--danger);font-weight:800}
 .nav-info-row .niv .muted{color:var(--text-muted);font-family:inherit;font-size:13px;font-weight:500}
-.nav-info-row .profile-graph-btn-inline{grid-column:2;grid-row:2;justify-self:start;background:var(--primary);color:#fff;border:none;padding:6px 15px;border-radius:14px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;align-self:start;margin-top:2px;box-shadow:0 1px 3px rgba(26,86,219,.25)}
+.nav-info-row .profile-graph-btn-inline{grid-column:2;grid-row:2;justify-self:start;background:var(--primary);color:#fff;border:none;padding:6px 15px;border-radius:14px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;align-self:start;margin-top:2px;box-shadow:0 1px 3px rgba(42,112,104,.25)}
 .nav-info-row .profile-graph-btn-inline:hover:not(:disabled){background:var(--primary-dark)}
 .nav-info-row .profile-graph-btn-inline:active:not(:disabled){transform:scale(.95)}
 .nav-info-row .profile-graph-btn-inline:disabled{background:var(--border-strong);color:var(--text-muted);cursor:not-allowed;box-shadow:none;opacity:.7}
@@ -574,7 +574,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 .picker-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 5px 3px 10px;background:var(--primary-light);color:var(--primary);border-radius:12px;font-size:12px;font-weight:700;line-height:1}
 .picker-chip.locked{background:var(--border);color:var(--text-muted);cursor:help}
 .picker-chip.locked .lock{font-size:10px}
-.picker-chip .x{background:rgba(26,86,219,.15);border:none;color:var(--primary);border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:13px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;font-family:inherit}
+.picker-chip .x{background:rgba(42,112,104,.15);border:none;color:var(--primary);border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:13px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center;font-family:inherit}
 .picker-chip .x:hover{background:var(--primary);color:#fff}
 .picker-chip.locked .x{display:none}
 .picker-input-row{display:flex;gap:6px;position:relative}
@@ -668,7 +668,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 #qr-reader{width:100%;border-radius:var(--radius-sm);overflow:hidden;background:#000;min-height:240px;position:relative;aspect-ratio:1}
 #qr-reader video{width:100%!important;height:100%!important;display:block;object-fit:cover}
 .scan-region-highlight{border:3px solid #fff;border-radius:8px}
-.scan-region-highlight-svg{stroke:#1a56db}
+.scan-region-highlight-svg{stroke:var(--primary)}
 .code-outline-highlight{stroke:#10b981!important;stroke-width:4!important}
 .qr-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .qr-actions button,.qr-actions label{flex:1;min-width:90px;padding:10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface2);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:center;color:var(--text)}
@@ -4337,8 +4337,8 @@ function showElevationChart() {
 
     // ===== Gradient fill under the curve =====
     const grad = ctx.createLinearGradient(0, padT, 0, padT + h);
-    grad.addColorStop(0, 'rgba(26,86,219,.35)');
-    grad.addColorStop(1, 'rgba(26,86,219,.05)');
+    grad.addColorStop(0, 'rgba(42,112,104,.35)');
+    grad.addColorStop(1, 'rgba(42,112,104,.05)');
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.moveTo(padL, padT + h);
@@ -5552,7 +5552,7 @@ function applyTheme(theme) {
   if (btn) btn.textContent = theme === 'dark' ? '☀️ מצב יום' : '🌙 מצב לילה';
   // Update mobile chrome theme color
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'dark' ? '#0f172a' : '#1a56db');
+  if (meta) meta.setAttribute('content', theme === 'dark' ? '#0f172a' : '#2a7068');
 }
 function toggleTheme() {
   document.getElementById('moreMenu').style.display = 'none';
