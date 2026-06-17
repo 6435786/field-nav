@@ -399,9 +399,10 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 /* Uniform frosted style for ALL floating map controls (semi-transparent, blurred,
    stays legible over any map). Icons keep their own colours. */
 .leaflet-control-tracking,.leaflet-control-compass,.leaflet-control-fullscreen,.leaflet-control-record,.leaflet-control-export,.leaflet-control-search,.leaflet-control-layers,.leaflet-bar a{
-  background:rgba(255,255,255,.82)!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  background:rgba(255,255,255,.62)!important;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
 [data-theme="dark"] .leaflet-control-tracking,[data-theme="dark"] .leaflet-control-compass,[data-theme="dark"] .leaflet-control-fullscreen,[data-theme="dark"] .leaflet-control-record,[data-theme="dark"] .leaflet-control-export,[data-theme="dark"] .leaflet-control-search,[data-theme="dark"] .leaflet-control-layers,[data-theme="dark"] .leaflet-bar a{
-  background:rgba(30,41,59,.78)!important;color:#fff}
+  background:rgba(30,41,59,.6)!important;color:#fff}
+.leaflet-control-tracking svg{width:22px;height:22px;display:block}
 /* Full-screen toggle, bottom-right of the map */
 .leaflet-control-fullscreen{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;color:#334155}
 .leaflet-control-fullscreen:hover{background:var(--surface2)}
@@ -3559,7 +3560,7 @@ function initMap() {
   trackControl.onAdd = function() {
     const div = L.DomUtil.create('div', 'leaflet-control-tracking');
     div.id = 'trackingControl';
-    div.innerHTML = '🎯';
+    div.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>';
     div.title = 'הצג את המיקום שלי';
     L.DomEvent.disableClickPropagation(div);
     L.DomEvent.on(div, 'click', toggleTracking);
