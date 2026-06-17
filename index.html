@@ -176,6 +176,24 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .app-header .auth-pill{padding:3px 5px;gap:3px;background:rgba(255,255,255,.16)}
 .app-header .auth-pill-info span:last-child{display:none} /* hide name — avatar only */
 .app-header .btn-admin{padding:5px 9px;font-size:15px}
+/* Minimal header: ☰ menu + account avatar at the two ends */
+.app-header{justify-content:space-between}
+.hdr-menu-btn{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;width:38px;height:38px;border-radius:var(--radius-sm);font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:inherit}
+.hdr-menu-btn:hover{background:rgba(255,255,255,.28)}
+.avatar-btn{width:34px;height:34px;border-radius:50%;border:1.5px solid rgba(255,255,255,.5);background:rgba(255,255,255,.18);color:#fff;cursor:pointer;padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.avatar-btn img{width:100%;height:100%;object-fit:cover}
+.avatar-initial{font-size:15px;font-weight:800}
+.avatar-menu{position:absolute;top:50px;left:8px;background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius-sm);box-shadow:0 6px 18px rgba(0,0,0,.2);z-index:300;min-width:190px;overflow:hidden}
+.avatar-menu .avatar-menu-name{padding:10px 14px;font-weight:800;font-size:13px;color:var(--text);background:var(--surface2);border-bottom:1px solid var(--border)}
+.avatar-menu button{display:block;width:100%;text-align:right;padding:11px 14px;background:#fff;border:none;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border)}
+.avatar-menu button:last-child{border-bottom:none}
+.avatar-menu button:hover{background:var(--surface2)}
+[data-theme="dark"] .avatar-menu{background:var(--surface);border-color:var(--border-strong)}
+[data-theme="dark"] .avatar-menu button,[data-theme="dark"] .avatar-menu .avatar-menu-name{background:var(--surface);color:var(--text)}
+/* Project section inside the ☰ menu */
+.more-menu .menu-label{padding:9px 14px 4px;font-size:11px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+.more-menu .menu-divider{height:1px;background:var(--border);margin:4px 0}
+.more-menu .menu-select{width:auto;margin:0 12px 6px;display:block}
 .auth-zone{display:flex;align-items:center;gap:6px}
 .auth-zone{display:flex;align-items:center;gap:7px}
 .auth-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.15);padding:4px 10px 4px 5px;border-radius:30px;font-size:12px;font-weight:600}
@@ -207,7 +225,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .project-bar .label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
 .project-select{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:14px;font-weight:600;background:var(--surface2);color:var(--text);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='3 5 6 8 9 5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 10px center;padding-left:30px}
 .btn-icon-square{width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--primary-light);color:var(--primary);border:none;border-radius:var(--radius-sm);font-size:16px;cursor:pointer;flex-shrink:0;font-family:inherit;font-weight:700}
-.more-menu{position:absolute;top:96px;left:12px;background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius-sm);box-shadow:0 4px 14px rgba(0,0,0,.15);z-index:200;min-width:220px;overflow:hidden}
+.more-menu{position:absolute;top:50px;right:8px;left:auto;background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius-sm);box-shadow:0 6px 18px rgba(0,0,0,.2);z-index:200;min-width:230px;max-width:min(86vw,300px);overflow:hidden}
 .layer-checks{display:flex;flex-direction:column;gap:6px;margin-top:6px}
 .layer-checks label{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:600;background:var(--surface2)}
 .layer-checks label:has(input:checked){background:var(--primary-light);border-color:var(--primary)}
@@ -709,14 +727,9 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 <body>
 <div class="app">
 
-  <!-- HEADER (app name removed; project controls folded in to save a row) -->
+  <!-- HEADER — minimal: one menu (☰, holds everything) + the account avatar -->
   <div class="app-header">
-    <select class="project-select" id="projectSelect" onchange="onProjectChange()">
-      <option value="__all">כללי</option>
-    </select>
-    <button class="btn-icon-square" id="editProjectBtn" onclick="openEditProjectModal()" title="הגדרות פרוייקט">⚙️</button>
-    <button class="btn-icon-square" id="addProjectBtn" onclick="openNewProjectModal()" title="פרוייקט חדש">➕</button>
-    <button class="btn-icon-square" id="moreMenuBtn" onclick="toggleMoreMenu(event)" title="ייבוא / ייצוא">⋮</button>
+    <button class="hdr-menu-btn" id="moreMenuBtn" onclick="toggleMoreMenu(event)" title="תפריט" aria-label="תפריט">☰</button>
     <input type="file" id="gpxFileInput" accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml,text/xml,application/xml" style="display:none" onchange="onGpxFileChosen(event)">
     <div class="auth-zone" id="authZone">
       <button class="btn-signin-small" onclick="signInWithGoogle()" id="signInBtn">🔑 התחבר</button>
@@ -735,6 +748,14 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 
   <!-- (Project controls moved up into the header) -->
   <div class="more-menu" id="moreMenu" style="display:none">
+    <div class="menu-label">פרוייקט</div>
+    <select class="project-select menu-select" id="projectSelect" onchange="onProjectChange()">
+      <option value="__all">כללי</option>
+    </select>
+    <button onclick="openNewProjectModal()" id="addProjectBtn">➕ פרוייקט חדש</button>
+    <button onclick="openEditProjectModal()" id="editProjectBtn">⚙️ הגדרות פרוייקט</button>
+    <button onclick="openAdminPanel()" id="adminMenuBtn" style="display:none">🛡️ ניהול</button>
+    <div class="menu-divider"></div>
     <button onclick="openImportFile()">📥 ייבוא GPX / KML</button>
     <button onclick="exportCurrentAsGPX()">📤 ייצוא הפרוייקט הנוכחי</button>
     <button onclick="clearImportedTracks()" id="clearTracksBtn" style="display:none">🧹 נקה מסלולים מיובאים</button>
@@ -1371,23 +1392,24 @@ function updateAuthUI() {
     const name = (state.user.displayName || state.user.email || '').split(' ')[0];
     // ניהול button sits AFTER the pill in DOM so RTL flex places it visually to
     // the LEFT of the user name — only shown to tier 4+ (admin / super_admin).
-    const adminBtnHtml = isAdminUser()
-      ? `<button class="btn-admin" onclick="openAdminPanel()" title="ניהול" aria-label="ניהול"><span>🛡️</span></button>`
-      : '';
+    // Account = a single avatar circle; tapping it opens a small menu (profile / logout).
+    const initial = (name || '?').trim().charAt(0).toUpperCase();
     zone.innerHTML = `
-      <div class="auth-pill">
-        <div class="auth-pill-info" onclick="openMyProfileModal()" title="פרופיל אישי">
-          ${photo ? `<img src="${photo}" alt="">` : '<span style="width:24px;height:24px;background:rgba(255,255,255,.3);border-radius:50%;display:inline-block"></span>'}
-          <span>${escapeHtml(name)}</span>
-        </div>
-        <button class="signout-x" onclick="signOutNow()" title="התנתק">✕</button>
-      </div>
-      ${adminBtnHtml}`;
-    // Project creation is admin-only. Non-admins see the button disabled with
-    // a tooltip instead of hidden — so they know the feature exists.
+      <button class="avatar-btn" onclick="toggleAvatarMenu(event)" title="${escapeHtml(name)}" aria-label="חשבון">
+        ${photo ? `<img src="${photo}" alt="">` : `<span class="avatar-initial">${escapeHtml(initial)}</span>`}
+      </button>
+      <div class="avatar-menu" id="avatarMenu" style="display:none">
+        <div class="avatar-menu-name">${escapeHtml(name)}</div>
+        <button onclick="closeAvatarMenu();openMyProfileModal()">👤 הפרופיל שלי</button>
+        <button onclick="closeAvatarMenu();signOutNow()">🚪 התנתק</button>
+      </div>`;
+    // Admin ("ניהול") + project actions now live inside the ☰ menu — gate by role.
+    const adminItem = document.getElementById('adminMenuBtn');
+    if (adminItem) adminItem.style.display = isAdminUser() ? 'block' : 'none';
     const canCreate = isAdminUser();
-    addBtn.disabled = !canCreate;
-    addBtn.title = canCreate ? 'פרוייקט חדש' : 'אין הרשאה לפתיחת פרוייקט';
+    if (addBtn) { addBtn.disabled = !canCreate; addBtn.title = canCreate ? '' : 'אין הרשאה לפתיחת פרוייקט'; }
+    const editProjEl = document.getElementById('editProjectBtn');
+    if (editProjEl) editProjEl.disabled = !isAdminUser();
   } else {
     zone.innerHTML = `<button class="btn-signin-small" onclick="signInWithGoogle()">🔑 התחבר</button>`;
     addBtn.disabled = true;
@@ -5352,6 +5374,25 @@ function toggleMoreMenu(e) {
     }, 0);
   }
 }
+
+function toggleAvatarMenu(e) {
+  e?.stopPropagation();
+  const m = document.getElementById('avatarMenu');
+  if (!m) return;
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+  if (m.style.display === 'block') {
+    setTimeout(() => {
+      const closeOnce = (ev) => {
+        if (!m.contains(ev.target) && !ev.target.closest('.avatar-btn')) {
+          m.style.display = 'none';
+          document.removeEventListener('click', closeOnce);
+        }
+      };
+      document.addEventListener('click', closeOnce);
+    }, 0);
+  }
+}
+function closeAvatarMenu() { const m = document.getElementById('avatarMenu'); if (m) m.style.display = 'none'; }
 
 function openImportFile() {
   document.getElementById('moreMenu').style.display = 'none';
