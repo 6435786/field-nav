@@ -399,9 +399,9 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 /* Uniform frosted style for ALL floating map controls (semi-transparent, blurred,
    stays legible over any map). Icons keep their own colours. */
 .leaflet-control-tracking,.leaflet-control-compass,.leaflet-control-fullscreen,.leaflet-control-record,.leaflet-control-export,.leaflet-control-search,.leaflet-control-layers,.leaflet-bar a{
-  background:rgba(255,255,255,.62)!important;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  background:rgba(255,255,255,.45)!important;backdrop-filter:blur(11px) saturate(1.2);-webkit-backdrop-filter:blur(11px) saturate(1.2);border:1px solid rgba(255,255,255,.45)!important}
 [data-theme="dark"] .leaflet-control-tracking,[data-theme="dark"] .leaflet-control-compass,[data-theme="dark"] .leaflet-control-fullscreen,[data-theme="dark"] .leaflet-control-record,[data-theme="dark"] .leaflet-control-export,[data-theme="dark"] .leaflet-control-search,[data-theme="dark"] .leaflet-control-layers,[data-theme="dark"] .leaflet-bar a{
-  background:rgba(30,41,59,.6)!important;color:#fff}
+  background:rgba(30,41,59,.45)!important;color:#fff;border:1px solid rgba(255,255,255,.18)!important}
 .leaflet-control-tracking svg{width:22px;height:22px;display:block}
 /* Full-screen toggle, bottom-right of the map */
 .leaflet-control-fullscreen{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;color:#334155}
