@@ -3728,26 +3728,11 @@ function renderPointsOnMap() {
 
 // ========== POINT INTERACTION (azimuth) ==========
 function onPointMarkerClick(point) {
-  // Toggle azimuth selection.
-  const sel = state.selectedForAzimuth;
-  if (sel.length >= 2) {
-    state.selectedForAzimuth = [point.id];
-  } else if (sel.includes(point.id)) {
-    // already selected — no change
-  } else {
-    state.selectedForAzimuth.push(point.id);
-  }
-  renderPointsOnMap();
+  // Tapping a saved point simply opens its details. (Distance + bearing from you
+  // to it appear there via loadNavInfo.) The old 1-2 "azimuth selection" was
+  // removed — measuring between two points lives in the 📏 measure tool.
   state.activePoint = point;
-  // If we just completed a 2-point selection, surface the sheet with the result
-  // (the user "set up" a measurement and wants to see it — same logic as
-  // measure-mode-done). Otherwise just show the floating button.
-  if (state.selectedForAzimuth.length === 2) {
-    showPointInSheet(point);
-  } else {
-    document.getElementById('showSheetBtn')?.classList.add('visible');
-  }
-  refreshAzimuth();
+  showPointInSheet(point);
 }
 
 function refreshAzimuth() {
