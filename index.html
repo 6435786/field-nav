@@ -180,6 +180,11 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .app-header{justify-content:space-between}
 .hdr-menu-btn{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;width:38px;height:38px;border-radius:var(--radius-sm);font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:inherit}
 .hdr-menu-btn:hover{background:rgba(255,255,255,.28)}
+.hdr-search{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;width:36px;height:36px;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.hdr-search:hover{background:rgba(255,255,255,.28)}
+.hdr-search svg{width:19px;height:19px;display:block}
+.hdr-menu-btn{width:36px;height:36px;font-size:19px}
+.app-header{padding:5px 8px}
 .avatar-btn{width:34px;height:34px;border-radius:50%;border:1.5px solid rgba(255,255,255,.5);background:rgba(255,255,255,.18);color:#fff;cursor:pointer;padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .avatar-btn img{width:100%;height:100%;object-fit:cover}
 .avatar-initial{font-size:15px;font-weight:800}
@@ -278,6 +283,9 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .btn-quick{flex:1;flex-direction:column-reverse;gap:3px;padding:7px 2px;background:transparent;color:var(--text-muted);border:none;border-radius:9px;font-family:inherit;font-size:10.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .btn-quick:active{background:var(--surface2)}
 .qi-icon{width:21px;height:21px;flex-shrink:0;display:block;color:var(--text-muted)}
+.quick-secondary{gap:0}
+.btn-quick{position:relative}
+.btn-quick:not(:first-child)::before{content:"";position:absolute;inset-inline-start:0;top:24%;bottom:24%;width:1px;background:var(--border)}
 .btn-quick:hover{background:var(--border)}
 .detected-mini{font-size:11px;color:var(--success);font-weight:600;text-align:center}
 .detected-mini:empty{display:none}
@@ -738,6 +746,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <!-- HEADER — minimal: one menu (☰, holds everything) + the account avatar -->
   <div class="app-header">
     <button class="hdr-menu-btn" id="moreMenuBtn" onclick="toggleMoreMenu(event)" title="תפריט" aria-label="תפריט">☰</button>
+    <button class="hdr-search" id="hdrSearchBtn" onclick="openMapSearch()" title="חיפוש מקום" aria-label="חיפוש מקום"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
     <input type="file" id="gpxFileInput" accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml,text/xml,application/xml" style="display:none" onchange="onGpxFileChosen(event)">
     <div class="auth-zone" id="authZone">
       <button class="btn-signin-small" onclick="signInWithGoogle()" id="signInBtn">🔑 התחבר</button>
@@ -804,12 +813,11 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   <!-- QUICK INPUT -->
   <div class="quick-input" id="quickInput">
     <div class="quick-input-row">
-      <button class="qi-search" onclick="openMapSearch()" title="חיפוש מקום" aria-label="חיפוש מקום"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
       <input type="text" class="coord-input" id="coordInput" placeholder="קואורדינטות / קישור גוגל מפות..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-      <button class="btn-clear-all" onclick="clearEverything()" id="clearAllBtn" title="נקה הכל">נקה</button>
       <button class="btn-add-point" id="addPointBtn" onclick="onAddPointClick()" disabled>➕ הוסף</button>
     </div>
     <div class="quick-secondary">
+      <button class="btn-quick" onclick="clearEverything()" id="clearAllBtn"><span>נקה</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
       <button class="btn-quick" onclick="useCurrentLocation()" id="locBtn"><span>מיקום נוכחי</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg></button>
       <button class="btn-quick" onclick="enterManualPickMode()" id="manualLocBtn"><span>ידני</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></button>
       <button class="btn-quick" onclick="openScanner()"><span>סרוק QR</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg></button>
