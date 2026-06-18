@@ -3534,8 +3534,7 @@ function initMap() {
   const layers = {
     'מפת רחובות': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM', maxZoom: 19 }),
     'לוויין': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }),
-    'טופוגרפי': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap', maxZoom: 17, subdomains: 'abc' }),
-    'שבילי ישראל': L.tileLayer('https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', { attribution: '© Israel Hiking', maxZoom: 16 })
+    'מפת שבילים': L.tileLayer('https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', { attribution: '© Israel Hiking', maxZoom: 16 })
   };
   layers['לוויין'].addTo(leafletMap);
   // "מפות אופליין" overlay — a layer group of green rectangles for downloaded areas.
@@ -5625,8 +5624,7 @@ function toggleTheme() {
 const OFFLINE_LAYERS = {
   street: { name: 'מפת רחובות', url: 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png', avgKB: 18, maxZoom: 19 },
   satellite: { name: 'לוויין', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', avgKB: 60, maxZoom: 19 },
-  topo: { name: 'טופוגרפי', url: 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png', avgKB: 32, maxZoom: 17 },
-  hiking: { name: 'שבילי ישראל', url: 'https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', avgKB: 25, maxZoom: 16 },
+  hiking: { name: 'מפת שבילים', url: 'https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', avgKB: 25, maxZoom: 16 },
 };
 
 let offlineSelectionActive = false;
