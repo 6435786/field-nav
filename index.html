@@ -3536,7 +3536,7 @@ function initMap() {
     'לוויין': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 }),
     'מפת שבילים': L.tileLayer('https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', { attribution: '© Israel Hiking', maxZoom: 16 })
   };
-  layers['לוויין'].addTo(leafletMap);
+  layers['מפת שבילים'].addTo(leafletMap);
   // "מפות אופליין" overlay — a layer group of green rectangles for downloaded areas.
   // The overlay is added to the control only for approved+ users (see
   // updateOfflineLayerAccess); toggling it on shows the regions + reveals the FAB.
@@ -3661,7 +3661,22 @@ function initMap() {
   // only on a user pan — not on our programmatic panTo/setView, nor on rotation.
   leafletMap.on('dragstart', () => disableFollow());
   updateCompassNeedle();
+  centerOnInitialLocation();
   setTimeout(() => leafletMap.invalidateSize(), 100);
+}
+
+// On app open, center the map on the user's current location (one-shot, no tracking).
+// Falls back to the default view if denied/unavailable, and won't override the view
+// if the user has already panned/zoomed by the time the fix arrives.
+function centerOnInitialLocation() {
+  if (!navigator.geolocation || !leafletMap) return;
+  const c0 = leafletMap.getCenter();
+  navigator.geolocation.getCurrentPosition(pos => {
+    const c = leafletMap.getCenter();
+    if (Math.abs(c.lat - c0.lat) < 1e-6 && Math.abs(c.lng - c0.lng) < 1e-6) {
+      leafletMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
+    }
+  }, () => {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
 }
 
 function setActiveUnsavedPoint(lat, lon, fromMapClick = false, suggestedName = null) {
