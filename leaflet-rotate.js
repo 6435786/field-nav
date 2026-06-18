@@ -1503,7 +1503,8 @@
             }
 
             this._moved = false;
-            this._rotateEngaged = false; // field-nav: rotation-intent threshold (see _onTouchMove)
+            this._gestureLock = null;            // field-nav: gesture-intent lock (see _onTouchMove)
+            this._startCenter = map.getCenter();
 
             map._stop();
 
@@ -1524,29 +1525,35 @@
                 scale = p1.distanceTo(p2) / this._startDist,
                 delta;
 
+            // field-nav patch: gesture-intent LOCK. The first clear intent (zoom vs
+            // rotate) wins the WHOLE gesture; the other is suppressed. So a pinch-zoom
+            // can't spin the map, and a deliberate twist won't zoom. Nothing is applied
+            // until one intent passes its threshold (zoom ~7% distance, rotate ~12deg).
+            var bearingDelta = 0;
             if (this._rotating) {
                 var theta = Math.atan(vector.x / vector.y);
-                var bearingDelta = (theta - this._startTheta) * L.DomUtil.RAD_TO_DEG;
+                bearingDelta = (theta - this._startTheta) * L.DomUtil.RAD_TO_DEG;
                 if (vector.y < 0) { bearingDelta += 180; }
-                // field-nav patch: rotation-intent threshold. A pinch-zoom always wiggles
-                // a few degrees; without this the map would spin unintentionally. Rotation
-                // only ENGAGES after a deliberate twist past ROTATE_THRESHOLD°, then
-                // continues smoothly (offset by the threshold so there's no jump).
-                var ROTATE_THRESHOLD = 12;
-                if (!this._rotateEngaged) {
-                    if (Math.abs(bearingDelta) < ROTATE_THRESHOLD) {
-                        bearingDelta = 0;
-                    } else {
-                        this._rotateEngaged = true;
-                        this._rotateOffset = bearingDelta > 0 ? ROTATE_THRESHOLD : -ROTATE_THRESHOLD;
-                    }
-                }
-                if (this._rotateEngaged && bearingDelta) {
-                    map.setBearing(this._startBearing - (bearingDelta - this._rotateOffset));
+            }
+            if (!this._gestureLock) {
+                var zoomMag = this._zooming  ? Math.abs(scale - 1) / 0.07 : 0;
+                var rotMag  = this._rotating ? Math.abs(bearingDelta) / 12 : 0;
+                if (zoomMag >= 1 || rotMag >= 1) {
+                    this._gestureLock = (rotMag > zoomMag) ? 'rotate' : 'zoom';
+                    if (this._gestureLock === 'rotate') { this._rotateOffset = bearingDelta > 0 ? 12 : -12; }
                 }
             }
+            if (!this._gestureLock) { L.DomEvent.preventDefault(e); return; }
 
-            if (this._zooming) {
+            if (this._gestureLock === 'rotate') {
+                if (this._rotating && bearingDelta) {
+                    map.setBearing(this._startBearing - (bearingDelta - this._rotateOffset));
+                }
+                this._center = this._startCenter;
+                this._zoom = this._startZoom;
+            }
+
+            if (this._zooming && this._gestureLock === 'zoom') {
                 this._zoom = map.getScaleZoom(scale, this._startZoom);
 
                 if (!map.options.bounceAtZoomLimits && (
