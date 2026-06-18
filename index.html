@@ -315,14 +315,14 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 
 /* Saved point markers (custom div icons) */
 .saved-point-marker{background:none!important;border:none!important;display:flex;align-items:center;justify-content:center}
-.saved-pin{width:12px;height:12px;background:transparent;border:2.5px solid var(--location);border-radius:50%;box-shadow:0 0 0 1.5px #fff,0 1px 3px rgba(0,0,0,.45);position:relative;display:flex;align-items:center;justify-content:center}
+.saved-pin{width:13px;height:13px;background:var(--location);border:2px solid #fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.5);position:relative;display:flex;align-items:center;justify-content:center}
 .saved-pin.selected{width:20px;height:20px;background:var(--location);border:2.5px solid #fff;transform:none;box-shadow:0 0 0 1.5px var(--location),0 2px 6px rgba(0,0,0,.5)}
 .saved-pin .num{color:#fff;font-size:10px;font-weight:800;line-height:1}
 
 /* Active (unsaved) marker */
 .active-point-marker{background:none!important;border:none!important}
-.active-pin{width:15px;height:15px;background:transparent;border:2.5px solid var(--location);border-radius:50%;box-shadow:0 0 0 1.5px #fff,0 1px 4px rgba(0,0,0,.5);position:relative}
-.active-pin::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:6px;height:6px;background:var(--location);border-radius:50%}
+.active-pin{width:17px;height:17px;background:var(--location);border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.55);position:relative}
+.active-pin::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:5px;height:5px;background:#fff;border-radius:50%}
 
 /* Profile peak marker */
 .peak-marker{background:none!important;border:none!important;display:flex;align-items:flex-end;justify-content:center}
