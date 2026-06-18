@@ -416,6 +416,10 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 [data-theme="dark"] .leaflet-control-tracking,[data-theme="dark"] .leaflet-control-compass,[data-theme="dark"] .leaflet-control-fullscreen,[data-theme="dark"] .leaflet-control-record,[data-theme="dark"] .leaflet-control-export,[data-theme="dark"] .leaflet-control-search,[data-theme="dark"] .leaflet-control-layers,[data-theme="dark"] .leaflet-bar a{
   background:rgba(30,41,59,.38)!important;color:#fff;border:1px solid rgba(255,255,255,.18)!important}
 .leaflet-control-tracking svg{width:22px;height:22px;display:block}
+/* push the top-left controls (zoom + layers) down a touch from the panel */
+.leaflet-top.leaflet-left{margin-top:8px}
+/* layers icon in the app's teal */
+.leaflet-control-layers-toggle{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232a7068' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.84Z'/%3E%3Cpath d='m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65'/%3E%3Cpath d='m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65'/%3E%3C/svg%3E")!important;background-size:22px 22px;background-position:center;background-repeat:no-repeat}
 /* Full-screen toggle, bottom-right of the map */
 .leaflet-control-fullscreen{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:none;color:var(--primary)}
 .leaflet-control-fullscreen:hover{background:var(--surface2)}
@@ -3669,7 +3673,7 @@ function initMap() {
   });
   // Dragging the map by hand turns off follow (like Google Maps). dragstart fires
   // only on a user pan — not on our programmatic panTo/setView, nor on rotation.
-  leafletMap.on('dragstart', () => disableFollow());
+  leafletMap.on('dragstart', () => { _userMovedEarly = true; disableFollow(); });
   updateCompassNeedle();
   centerOnInitialLocation();
   setTimeout(() => leafletMap.invalidateSize(), 100);
@@ -3678,15 +3682,14 @@ function initMap() {
 // On app open, center the map on the user's current location (one-shot, no tracking).
 // Falls back to the default view if denied/unavailable, and won't override the view
 // if the user has already panned/zoomed by the time the fix arrives.
+let _userMovedEarly = false; // true once the user pans before the initial GPS fix lands
 function centerOnInitialLocation() {
   if (!navigator.geolocation || !leafletMap) return;
-  const c0 = leafletMap.getCenter();
   navigator.geolocation.getCurrentPosition(pos => {
-    const c = leafletMap.getCenter();
-    if (Math.abs(c.lat - c0.lat) < 1e-6 && Math.abs(c.lng - c0.lng) < 1e-6) {
-      leafletMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
-    }
-  }, () => {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 });
+    if (_userMovedEarly) return; // user already started navigating — don't yank the view
+    // Same zoom as the 🎯 locate button (16), with a reliable high-accuracy fix.
+    leafletMap.setView([pos.coords.latitude, pos.coords.longitude], 16);
+  }, () => {}, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
 }
 
 function setActiveUnsavedPoint(lat, lon, fromMapClick = false, suggestedName = null) {
