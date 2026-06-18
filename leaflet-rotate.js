@@ -1551,15 +1551,14 @@
             }
             if (!this._gestureLock) { L.DomEvent.preventDefault(e); return; }
 
-            if (this._gestureLock === 'rotate') {
-                if (this._rotating && bearingDelta) {
-                    map.setBearing(this._startBearing - (bearingDelta - this._rotateOffset));
-                }
-                this._center = this._startCenter;
-                this._zoom = this._startZoom;
+            // Rotation applies only when the gesture locked to ROTATE. Zoom is allowed
+            // in BOTH locks — we protect zoom from an accidental spin, but not the other
+            // way round (zooming while you rotate is fine and convenient).
+            if (this._gestureLock === 'rotate' && this._rotating && bearingDelta) {
+                map.setBearing(this._startBearing - (bearingDelta - this._rotateOffset));
             }
 
-            if (this._zooming && this._gestureLock === 'zoom') {
+            if (this._zooming) {
                 this._zoom = map.getScaleZoom(scale, this._startZoom);
 
                 if (!map.options.bounceAtZoomLimits && (
