@@ -1503,6 +1503,7 @@
             }
 
             this._moved = false;
+            this._rotateEngaged = false; // field-nav: rotation-intent threshold (see _onTouchMove)
 
             map._stop();
 
@@ -1527,16 +1528,21 @@
                 var theta = Math.atan(vector.x / vector.y);
                 var bearingDelta = (theta - this._startTheta) * L.DomUtil.RAD_TO_DEG;
                 if (vector.y < 0) { bearingDelta += 180; }
-                if (bearingDelta) {
-                    /**
-                     * @TODO the pivot should be the last touch point,
-                     * but zoomAnimation manages to overwrite the rotate
-                     * pane position. Maybe related to #3529.
-                     * 
-                     * @see https://github.com/Leaflet/Leaflet/pull/3529
-                     * @see https://github.com/fnicollet/Leaflet/commit/a77af51a6b10f308d1b9a16552091d1d0aee8834
-                     */
-                    map.setBearing(this._startBearing - bearingDelta);
+                // field-nav patch: rotation-intent threshold. A pinch-zoom always wiggles
+                // a few degrees; without this the map would spin unintentionally. Rotation
+                // only ENGAGES after a deliberate twist past ROTATE_THRESHOLD°, then
+                // continues smoothly (offset by the threshold so there's no jump).
+                var ROTATE_THRESHOLD = 12;
+                if (!this._rotateEngaged) {
+                    if (Math.abs(bearingDelta) < ROTATE_THRESHOLD) {
+                        bearingDelta = 0;
+                    } else {
+                        this._rotateEngaged = true;
+                        this._rotateOffset = bearingDelta > 0 ? ROTATE_THRESHOLD : -ROTATE_THRESHOLD;
+                    }
+                }
+                if (this._rotateEngaged && bearingDelta) {
+                    map.setBearing(this._startBearing - (bearingDelta - this._rotateOffset));
                 }
             }
 
