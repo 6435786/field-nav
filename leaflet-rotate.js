@@ -1529,18 +1529,24 @@
             // rotate) wins the WHOLE gesture; the other is suppressed. So a pinch-zoom
             // can't spin the map, and a deliberate twist won't zoom. Nothing is applied
             // until one intent passes its threshold (zoom ~7% distance, rotate ~12deg).
-            var bearingDelta = 0;
+            var bearingDelta = 0, twist = 0;
             if (this._rotating) {
                 var theta = Math.atan(vector.x / vector.y);
-                bearingDelta = (theta - this._startTheta) * L.DomUtil.RAD_TO_DEG;
-                if (vector.y < 0) { bearingDelta += 180; }
+                // twist = ACTUAL angular change since the gesture started (~0 at rest).
+                // bearingDelta keeps the library's +180 wrap-correction that setBearing
+                // relies on — but we must NOT use that 180-laden value to detect intent,
+                // or a natural finger placement reads as "already rotated 180" and the
+                // gesture jumps straight into rotation.
+                twist = (theta - this._startTheta) * L.DomUtil.RAD_TO_DEG;
+                bearingDelta = twist + (vector.y < 0 ? 180 : 0);
             }
             if (!this._gestureLock) {
+                var ROT_LOCK = 14;
                 var zoomMag = this._zooming  ? Math.abs(scale - 1) / 0.07 : 0;
-                var rotMag  = this._rotating ? Math.abs(bearingDelta) / 12 : 0;
+                var rotMag  = this._rotating ? Math.abs(twist) / ROT_LOCK : 0;
                 if (zoomMag >= 1 || rotMag >= 1) {
                     this._gestureLock = (rotMag > zoomMag) ? 'rotate' : 'zoom';
-                    if (this._gestureLock === 'rotate') { this._rotateOffset = bearingDelta > 0 ? 12 : -12; }
+                    if (this._gestureLock === 'rotate') { this._rotateOffset = twist > 0 ? ROT_LOCK : -ROT_LOCK; }
                 }
             }
             if (!this._gestureLock) { L.DomEvent.preventDefault(e); return; }
