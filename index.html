@@ -742,6 +742,34 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
 
 /* Empty state */
 .empty-points{text-align:center;padding:14px;color:var(--text-muted);font-size:12.5px;background:var(--surface2);border-radius:var(--radius-sm);margin:8px 0}
+
+/* ========== FLOATING TOP ("GLASS") — mobile only ==========
+   The header + quick-input float over the map instead of pushing it down.
+   The map fills .app behind them. Leaflet's top-left controls and any
+   in-map banners get shifted down by --top-cluster-h (set by JS) so they
+   don't hide under the floating panel. */
+@media (max-width:899px){
+  .map-area{position:absolute;inset:0;z-index:0}
+  .app-header{position:relative;z-index:80;background:rgba(42,112,104,.65);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 2px 10px rgba(15,23,42,.18)}
+  .install-banner,.auth-banner{position:relative;z-index:80}
+  .quick-input{position:relative;z-index:80;background:rgba(255,255,255,.65);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);box-shadow:0 4px 14px rgba(15,23,42,.14)}
+  [data-theme="dark"] .quick-input{background:rgba(15,23,42,.62)}
+  /* Coord input slightly more opaque so it's still highly readable */
+  .quick-input .coord-input{background:rgba(255,255,255,.88)}
+  [data-theme="dark"] .quick-input .coord-input{background:rgba(30,41,59,.85)}
+  /* Push leaflet top-left controls (zoom + layers) below the floating panel */
+  .leaflet-top.leaflet-left{margin-top:calc(var(--top-cluster-h, 100px) + 8px)}
+  /* In-map banners + the "show details" button live at top:10px inside .map-area.
+     Now that the map fills behind the floating panel, push them down too. */
+  .map-area > .show-sheet-btn,
+  .map-area > .map-pin-msg,
+  .map-area > .recording-banner,
+  .map-area > .measure-banner,
+  .map-area > .manual-pick-banner,
+  .map-area > .manual-banner,
+  .map-area > .offline-pick-banner{top:calc(var(--top-cluster-h, 100px) + 10px)}
+  .map-area:has(.recording-banner.show, .measure-banner.show, .manual-pick-banner.show, .manual-banner.show, .offline-pick-banner.show) .show-sheet-btn{top:calc(var(--top-cluster-h, 100px) + 54px)}
+}
 </style>
 </head>
 <body>
@@ -6120,6 +6148,49 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !isRunningStandalone() && !l
   banner.querySelector('.install-btn').style.display = 'none';
   setTimeout(() => { banner.style.display = 'flex'; }, 2500);
 }
+
+/* ========== FLOATING TOP — measure top-cluster height ==========
+   The header/banners/quick-input float over the map (mobile). We need to push
+   leaflet's top-left controls + in-map banners down by the visible top height.
+   Set --top-cluster-h on :root and let CSS use it (mobile-only via @media). */
+(function(){
+  const root = document.documentElement;
+  function update(){
+    if (window.innerWidth >= 900) {
+      root.style.removeProperty('--top-cluster-h');
+      return;
+    }
+    const app = document.querySelector('.app');
+    const map = document.querySelector('.map-area');
+    if (!app || !map) return;
+    const appTop = app.getBoundingClientRect().top;
+    let maxBottom = 0;
+    for (const el of app.children) {
+      if (el === map) break;
+      if (getComputedStyle(el).display === 'none') continue;
+      const r = el.getBoundingClientRect();
+      if (r.height === 0) continue;
+      const b = r.bottom - appTop;
+      if (b > maxBottom) maxBottom = b;
+    }
+    root.style.setProperty('--top-cluster-h', Math.round(maxBottom) + 'px');
+  }
+  // Run on layout milestones
+  window.addEventListener('load', update);
+  window.addEventListener('resize', update);
+  window.addEventListener('orientationchange', update);
+  document.addEventListener('DOMContentLoaded', update);
+  // Re-measure when the floating top elements resize / become visible
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(update);
+    ['.app-header','.install-banner','.auth-banner','#quickInput'].forEach(sel => {
+      const el = document.querySelector(sel);
+      if (el) ro.observe(el);
+    });
+  }
+  // Initial run (in case load already fired)
+  update();
+})();
 </script>
 </body>
 </html>
