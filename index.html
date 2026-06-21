@@ -310,7 +310,7 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .show-sheet-btn:active{transform:translateX(-50%) scale(.97)}
 /* When any top-of-map banner is visible (recording / measure / manual-pick / manual-active),
    slide the button down so it doesn't collide with the centered banner. */
-.map-area:has(.recording-banner.show, .measure-banner.show, .manual-pick-banner.show, .manual-banner.show, .offline-pick-banner.show) .show-sheet-btn{top:54px}
+.map-area:has(.recording-banner.show, .manual-pick-banner.show, .manual-banner.show, .offline-pick-banner.show) .show-sheet-btn{top:54px}
 .map-pin-msg.show{display:block;animation:fadeOut 2.5s forwards}
 @keyframes fadeOut{0%,60%{opacity:1}100%{opacity:0}}
 
@@ -369,15 +369,6 @@ body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
 .manual-pick-banner button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:3px 12px;border-radius:12px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
 .manual-pick-banner button:hover{background:rgba(255,255,255,.4)}
 
-/* Measurement mode banner + A/B markers */
-.measure-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;padding:8px 16px;border-radius:22px;font-size:13px;font-weight:600;z-index:560;box-shadow:0 4px 12px rgba(0,0,0,.3);display:none;align-items:center;gap:10px;max-width:90vw}
-.measure-banner.show{display:flex}
-.measure-banner .measure-close-x{background:#dc2626;border:2px solid #fff;color:#fff;width:28px;height:28px;padding:0;border-radius:50%;font-family:inherit;font-size:15px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.3)}
-.measure-banner .measure-close-x:hover{background:#b91c1c}
-.measure-marker{background:none!important;border:none!important;display:flex;align-items:center;justify-content:center}
-.measure-pin{width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.5);font-family:inherit}
-.measure-pin.a{background:#10b981}
-.measure-pin.b{background:#dc2626}
 .leaflet-control-tracking{background:#fff;border-radius:8px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;user-select:none;border:none}
 .leaflet-control-tracking.active{background:var(--primary);color:#fff}
 .leaflet-control-tracking:hover{background:var(--surface2)}
@@ -764,11 +755,10 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
   .map-area > .show-sheet-btn,
   .map-area > .map-pin-msg,
   .map-area > .recording-banner,
-  .map-area > .measure-banner,
   .map-area > .manual-pick-banner,
   .map-area > .manual-banner,
   .map-area > .offline-pick-banner{top:calc(var(--top-cluster-h, 100px) + 10px)}
-  .map-area:has(.recording-banner.show, .measure-banner.show, .manual-pick-banner.show, .manual-banner.show, .offline-pick-banner.show) .show-sheet-btn{top:calc(var(--top-cluster-h, 100px) + 54px)}
+  .map-area:has(.recording-banner.show, .manual-pick-banner.show, .manual-banner.show, .offline-pick-banner.show) .show-sheet-btn{top:calc(var(--top-cluster-h, 100px) + 54px)}
 }
 </style>
 </head>
@@ -853,7 +843,6 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
       <button class="btn-quick" onclick="useCurrentLocation()" id="locBtn"><span>מיקום נוכחי</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg></button>
       <button class="btn-quick" onclick="enterManualPickMode()" id="manualLocBtn"><span>ידני</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></button>
       <button class="btn-quick" onclick="openScanner()"><span>סרוק QR</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg></button>
-      <button class="btn-quick" onclick="enterMeasureMode()" id="measureBtn"><span>מדידה</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg></button>
     </div>
     <div class="detected-mini" id="detectedMini"></div>
     <div class="url-fallback" id="urlFallback">
@@ -885,10 +874,6 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <div class="manual-pick-banner" id="manualPickBanner">
       <span>📌 בחר נקודה (קליק במפה / הזנה + Enter / QR / מיקום נוכחי)</span>
       <button onclick="exitManualPickMode()">בטל</button>
-    </div>
-    <div class="measure-banner" id="measureBanner">
-      <span id="measureBannerText">בחר נקודה ראשונה</span>
-      <button class="measure-close-x" onclick="exitMeasureMode()" title="סיום מדידה" aria-label="סיום">✕</button>
     </div>
     <div class="recording-banner" id="recordingBanner">
       <span class="rec-dot"></span>
@@ -1344,9 +1329,6 @@ const state = {
   editingProjectId: null,
   manualLocation: false,         // true when livePosition was set by hand (no GPS)
   pickingManualLocation: false,  // map-click mode for choosing the manual point
-  measureMode: null,             // null | 'A' | 'B' | 'done' — two-point measurement flow
-  measureMarkerA: null,
-  measureMarkerB: null,
   manualPicking: false,          // banner-based "pick a manual location" mode
   recording: null,               // active recording: {active, startTime, points, watchId, wakeLock, livePolyline, timer, totalDist}
   recordings: [],                // completed recordings this session (with localStorage backup)
@@ -2935,17 +2917,10 @@ document.getElementById('coordInput').addEventListener('input', () => {
     }
     const r = detectAndParse(input);
     if (r && !r.error) {
-      // In measure / manual-pick modes we don't auto-commit on every keystroke —
-      // the debounce would lock in a half-typed number (e.g. "31.776899,35" parses
-      // as valid before the user finishes typing the second decimal). Show what
-      // was detected and require an explicit Enter to apply.
-      if (state.measureMode === 'A' || state.measureMode === 'B') {
-        const slot = state.measureMode;
-        mini.innerHTML = `✓ ${r.type}: ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)} <span class="muted">— לחץ Enter לאישור כנקודה ${slot}</span>`;
-        mini.className = 'detected-mini';
-        updateAddPointBtn();
-        return;
-      }
+      // In manual-pick mode we don't auto-commit on every keystroke — the debounce
+      // would lock in a half-typed number (e.g. "31.776899,35" parses as valid
+      // before the user finishes typing the second decimal). Show what was detected
+      // and require an explicit Enter to apply.
       if (state.manualPicking) {
         mini.innerHTML = `✓ ${r.type}: ${r.latLon[0].toFixed(5)}, ${r.latLon[1].toFixed(5)} <span class="muted">— לחץ Enter לאישור כמיקום ידני</span>`;
         mini.className = 'detected-mini';
@@ -3012,9 +2987,7 @@ document.getElementById('coordInput').addEventListener('keydown', (e) => {
     e.preventDefault();
     const r = parseInputForCoords();
     if (!r) return;
-    // In special modes, Enter is the explicit commit signal
-    if (state.measureMode === 'A') { setMeasureA(r.latLon[0], r.latLon[1]); return; }
-    if (state.measureMode === 'B') { setMeasureB(r.latLon[0], r.latLon[1]); return; }
+    // In manual-pick mode, Enter is the explicit commit signal
     if (state.manualPicking) { setManualLocation(r.latLon[0], r.latLon[1]); exitManualPickMode(); document.getElementById('coordInput').value=''; const mini=document.getElementById('detectedMini'); if(mini){mini.textContent='';mini.className='detected-mini';} return; }
     onAddPointClick();
   }
@@ -3400,8 +3373,6 @@ function clearManualLocation() {
 // gesture (map tap / typed-and-Enter / pasted URL / QR scan / "מיקום נוכחי")
 // becomes the manual location.
 function enterManualPickMode() {
-  // Don't allow inside measure mode — that flow has its own A/B handling
-  if (state.measureMode) { toast('סיים מצב מדידה קודם', 2000); return; }
   state.manualPicking = true;
   document.getElementById('manualPickBanner').classList.add('show');
   toast('בחר נקודה כדי להגדיר אותה כמיקום ידני', 2200);
@@ -3409,107 +3380,6 @@ function enterManualPickMode() {
 function exitManualPickMode() {
   state.manualPicking = false;
   document.getElementById('manualPickBanner').classList.remove('show');
-}
-
-// ========== TWO-POINT MEASUREMENT ==========
-// Flow: user clicks "📏 מדידה" → picks point A (any input method) → picks point B
-// → the sheet opens with normal nav-info treating A as livePosition and B as
-// activePoint, so distance/azimuth/elevation/profile all read A→B.
-function enterMeasureMode() {
-  // Reset any previous measurement silently
-  if (state.measureMarkerA) { leafletMap.removeLayer(state.measureMarkerA); state.measureMarkerA = null; }
-  if (state.measureMarkerB) { leafletMap.removeLayer(state.measureMarkerB); state.measureMarkerB = null; }
-  state.measureMode = 'A';
-  // Clear any current active point UI so the user starts fresh
-  if (state.unsavedMarker) { leafletMap.removeLayer(state.unsavedMarker); state.unsavedMarker = null; }
-  state.activePoint = null;
-  document.getElementById('pointSheet').classList.remove('show');
-  document.getElementById('sheetBackdrop').classList.remove('show');
-  document.getElementById('showSheetBtn')?.classList.remove('visible');
-  document.getElementById('sheetBody').innerHTML = '';
-  clearElevationProfile();
-  document.getElementById('coordInput').value = '';
-  const mini = document.getElementById('detectedMini'); if (mini) { mini.textContent = ''; mini.className = 'detected-mini'; }
-  // Show banner
-  document.getElementById('measureBannerText').textContent = '📏 בחר נקודה A (קליק במפה / הזנה / QR / מיקום נוכחי)';
-  document.getElementById('measureBanner').classList.add('show');
-  toast('מצב מדידה: בחר נקודה ראשונה (A)', 2500);
-}
-
-function exitMeasureMode() {
-  if (state.measureMarkerA) { leafletMap.removeLayer(state.measureMarkerA); state.measureMarkerA = null; }
-  if (state.measureMarkerB) { leafletMap.removeLayer(state.measureMarkerB); state.measureMarkerB = null; }
-  state.measureMode = null;
-  document.getElementById('measureBanner').classList.remove('show');
-  // Also clear the rest of the active state (we don't want a half-measurement to leak into normal mode)
-  if (state.unsavedMarker) { leafletMap.removeLayer(state.unsavedMarker); state.unsavedMarker = null; }
-  state.activePoint = null;
-  state.livePosition = null;
-  document.getElementById('pointSheet').classList.remove('show');
-  document.getElementById('sheetBackdrop').classList.remove('show');
-  document.getElementById('showSheetBtn')?.classList.remove('visible');
-  document.getElementById('sheetBody').innerHTML = '';
-  clearElevationProfile();
-}
-
-function setMeasureA(lat, lon) {
-  clearTimeout(parseTimer); // cancel any debounce that would re-run on the now-empty input
-  if (state.measureMarkerA) leafletMap.removeLayer(state.measureMarkerA);
-  state.measureMarkerA = L.marker([lat, lon], {
-    icon: L.divIcon({
-      className: 'measure-marker',
-      html: '<div class="measure-pin a">A</div>',
-      iconSize: [34, 34], iconAnchor: [17, 17]
-    }),
-    zIndexOffset: 800,
-  }).addTo(leafletMap);
-  // Once measurement is done, tapping A reopens the A→B sheet instead of starting a new point
-  state.measureMarkerA.on('click', (e) => {
-    L.DomEvent.stopPropagation(e);
-    if (state.measureMode === 'done' && state.activePoint) showPointInSheet(state.activePoint);
-  });
-  // A becomes "your position" for the measurement so the normal nav-info path computes A→B
-  state.livePosition = { lat, lon, accuracy: null };
-  state.measureMode = 'B';
-  // Clear input so user knows the system accepted A and can now type B fresh
-  document.getElementById('coordInput').value = '';
-  const mini = document.getElementById('detectedMini'); if (mini) { mini.textContent = ''; mini.className = 'detected-mini'; }
-  document.getElementById('measureBannerText').textContent = '📏 A הוגדר · עכשיו בחר נקודה B';
-  toast('A הוגדר. בחר B', 1800);
-}
-
-function setMeasureB(lat, lon) {
-  clearTimeout(parseTimer); // cancel any debounce that would re-run on the now-empty input
-  if (state.measureMarkerB) leafletMap.removeLayer(state.measureMarkerB);
-  state.measureMarkerB = L.marker([lat, lon], {
-    icon: L.divIcon({
-      className: 'measure-marker',
-      html: '<div class="measure-pin b">B</div>',
-      iconSize: [34, 34], iconAnchor: [17, 17]
-    }),
-    zIndexOffset: 800,
-  }).addTo(leafletMap);
-  // Once measurement is done, tapping B reopens the A→B sheet instead of starting a new point
-  state.measureMarkerB.on('click', (e) => {
-    L.DomEvent.stopPropagation(e);
-    if (state.measureMode === 'done' && state.activePoint) showPointInSheet(state.activePoint);
-  });
-  // B becomes the active point — triggers the normal sheet flow with A→B calculations
-  state.activePoint = {
-    lat, lon, isSaved: false,
-    name: 'מדידה A → B',
-    suggestedName: null,
-  };
-  state.measureMode = 'done';
-  document.getElementById('coordInput').value = '';
-  const mini = document.getElementById('detectedMini'); if (mini) { mini.textContent = ''; mini.className = 'detected-mini'; }
-  document.getElementById('measureBannerText').innerHTML = '📏 A → B';
-  // Fit map view to show both markers
-  const bounds = L.latLngBounds([state.measureMarkerA.getLatLng(), state.measureMarkerB.getLatLng()]).pad(0.3);
-  leafletMap.fitBounds(bounds);
-  // Open the sheet — its nav-info auto-computes against state.livePosition (=A)
-  clearElevationProfile();
-  showPointInSheet(state.activePoint);
 }
 
 function useCurrentLocation() {
@@ -3529,9 +3399,7 @@ function useCurrentLocation() {
     const { latitude, longitude, accuracy } = pos.coords;
     btn.innerHTML = '📍 מיקום נוכחי';
     btn.disabled = false;
-    // Route GPS to A/B in measurement mode, or to manual location in manual-pick mode
-    if (state.measureMode === 'A') { setMeasureA(latitude, longitude); return; }
-    if (state.measureMode === 'B') { setMeasureB(latitude, longitude); return; }
+    // Route GPS to manual location in manual-pick mode
     if (state.manualPicking) { setManualLocation(latitude, longitude); exitManualPickMode(); return; }
     const hadActivePoint = !!state.activePoint;
     state.livePosition = { lat: latitude, lon: longitude, accuracy };
@@ -3721,10 +3589,8 @@ function centerOnInitialLocation() {
 }
 
 function setActiveUnsavedPoint(lat, lon, fromMapClick = false, suggestedName = null) {
-  // Route through measurement / manual-pick modes if active — any incoming
-  // coordinate is treated as the picked point for that mode
-  if (state.measureMode === 'A') { setMeasureA(lat, lon); return; }
-  if (state.measureMode === 'B') { setMeasureB(lat, lon); return; }
+  // Route through manual-pick mode if active — any incoming coordinate is
+  // treated as the picked point for that mode
   if (state.manualPicking) { setManualLocation(lat, lon); exitManualPickMode(); return; }
   state.activePoint = {
     lat, lon, isSaved: false,
@@ -3851,7 +3717,6 @@ function showPointInSheet(point) {
 function autoFetchLocationForActivePoint() {
   if (!state.activePoint) return;
   if (state.manualLocation) return;    // user already set a manual reference — respect it
-  if (state.measureMode) return;       // measure mode manages its own livePosition (= A)
   if (state.manualPicking || state.pickingManualLocation) return;
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(pos => {
@@ -3898,8 +3763,6 @@ function reopenActivePointSheet() {
 //  - Saved Firestore points / projects (those are persistent data)
 //  - Live GPS tracking state
 function clearEverything() {
-  // If a measurement is in progress, exit it too — clearEverything is a full reset
-  if (state.measureMode) { exitMeasureMode(); return; }
   // Coord input
   document.getElementById('coordInput').value = '';
   const mini = document.getElementById('detectedMini'); if (mini) { mini.textContent = ''; mini.className = 'detected-mini'; }
