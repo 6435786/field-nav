@@ -773,7 +773,7 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
     <button class="hdr-search" id="hdrSearchBtn" onclick="openMapSearch()" title="חיפוש מקום" aria-label="חיפוש מקום"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
     <input type="file" id="gpxFileInput" accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml,text/xml,application/xml" style="display:none" onchange="onGpxFileChosen(event)">
     <div class="auth-zone" id="authZone">
-      <button class="btn-signin-small" onclick="signInWithGoogle()" id="signInBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>התחבר</button>
+      <button class="btn-signin-small" onclick="signInWithGoogle()" id="signInBtn">התחבר</button>
     </div>
   </div>
 
@@ -1447,7 +1447,7 @@ function updateAuthUI() {
     const editProjEl = document.getElementById('editProjectBtn');
     if (editProjEl) editProjEl.disabled = !isAdminUser();
   } else {
-    zone.innerHTML = `<button class="btn-signin-small" onclick="signInWithGoogle()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>התחבר</button>`;
+    zone.innerHTML = `<button class="btn-signin-small" onclick="signInWithGoogle()">התחבר</button>`;
     addBtn.disabled = true;
     addBtn.title = 'התחבר עם גוגל';
   }
