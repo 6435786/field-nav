@@ -358,14 +358,16 @@ html,body{height:100%;font-family:'Heebo',sans-serif;background:var(--bg);color:
 .offline-pick-banner.show{display:flex}
 .offline-pick-banner button{background:rgba(255,255,255,.22);border:none;color:#fff;padding:3px 12px;border-radius:12px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
 .offline-pick-banner button:hover{background:rgba(255,255,255,.4)}
-.offline-dl-fab{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;border:none;padding:9px 16px;border-radius:22px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;z-index:555;box-shadow:0 3px 12px rgba(5,150,105,.4);display:none;align-items:center;gap:6px}
-.offline-dl-fab.visible{display:inline-flex}
-/* Hide the "מפות אופליין" overlay entry from the layer control for users below
-   approved level (the overlay always exists in the control for reliability). */
-body.offline-overlay-hidden .leaflet-control-layers-overlays,
-body.offline-overlay-hidden .leaflet-control-layers-separator{display:none}
-.offline-dl-fab:hover{background:#047857}
-.offline-dl-fab:active{transform:translateX(-50%) scale(.96)}
+/* Offline popover menu — anchored under the "אופליין" button (mobile only via JS positioning) */
+.offline-menu{position:absolute;top:100%;left:8px;background:#fff;border:1px solid var(--border-strong);border-radius:var(--radius-sm);box-shadow:0 6px 18px rgba(0,0,0,.25);z-index:85;min-width:210px;overflow:hidden;margin-top:6px}
+.offline-menu button{display:flex;align-items:center;gap:10px;width:100%;text-align:right;padding:11px 14px;background:#fff;border:none;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border)}
+.offline-menu button:last-child{border-bottom:none}
+.offline-menu button:hover{background:var(--surface2)}
+.offline-menu svg{width:18px;height:18px;flex-shrink:0;color:var(--primary)}
+.offline-menu .check{margin-right:auto;color:var(--success);font-weight:800;font-size:15px}
+[data-theme="dark"] .offline-menu{background:var(--surface);border-color:var(--border-strong)}
+[data-theme="dark"] .offline-menu button{background:var(--surface);color:var(--text)}
+[data-theme="dark"] .offline-menu button:hover{background:var(--surface2)}
 .manual-pick-banner button{background:rgba(255,255,255,.25);border:none;color:#fff;padding:3px 12px;border-radius:12px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
 .manual-pick-banner button:hover{background:rgba(255,255,255,.4)}
 
@@ -843,6 +845,11 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
       <button class="btn-quick" onclick="useCurrentLocation()" id="locBtn"><span>מיקום נוכחי</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg></button>
       <button class="btn-quick" onclick="enterManualPickMode()" id="manualLocBtn"><span>מיקום ידני</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></button>
       <button class="btn-quick" onclick="openScanner()"><span>סרוק QR</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg></button>
+      <button class="btn-quick" onclick="toggleOfflineMenu(event)" id="offlineMenuBtn"><span>אופליין</span><svg class="qi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4 4-4-4"/></svg></button>
+    </div>
+    <div class="offline-menu" id="offlineMenu" style="display:none">
+      <button onclick="startOfflineDownloadFromMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg><span>הורד אזור חדש</span></button>
+      <button onclick="toggleOfflineRegionsView()" id="offlineRegionsToggleBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg><span>הצג אזורים שהורדתי</span><span class="check" id="offlineRegionsCheck" style="display:none">✓</span></button>
     </div>
     <div class="detected-mini" id="detectedMini"></div>
     <div class="url-fallback" id="urlFallback">
@@ -884,7 +891,6 @@ details.conversions[open] summary{border-bottom:1px solid var(--border)}
       <span id="offlinePickBannerText">📍 לחץ על המפה לסימון פינה ראשונה</span>
       <button onclick="cancelOfflinePicking()">בטל</button>
     </div>
-    <button class="offline-dl-fab" id="offlineDlFab" onclick="startOfflinePicking()" title="הורד אריחים לאזור זה">💾 הורד אריחים</button>
   </div>
 
   <!-- Bottom sheet (mobile) / right-panel content (desktop) -->
@@ -1446,7 +1452,16 @@ function updateAuthUI() {
     addBtn.title = 'התחבר עם גוגל';
   }
   updateAddPointBtn();
-  updateOfflineLayerAccess(); // role may have changed → show/hide the offline-maps overlay
+  // If the user signed out while offline-regions overlay was on, close it +
+  // close the popover menu — the layer stays available, just visually hidden.
+  if (!auth?.currentUser) {
+    if (leafletMap && offlineRegionsLayer && leafletMap.hasLayer(offlineRegionsLayer)) {
+      leafletMap.removeLayer(offlineRegionsLayer);
+    }
+    closeOfflineMenu();
+    const chk = document.getElementById('offlineRegionsCheck');
+    if (chk) chk.style.display = 'none';
+  }
 }
 
 if (auth) {
@@ -1609,7 +1624,6 @@ function canAddPointsToProject(p) {
 function canManageProject(p) { return isAdminUser(); }
 
 // Tier helpers — all return false when signed out
-function isApprovedUser()  { return ['approved', 'admin', 'super_admin'].includes(state.userRole); }
 function isAdminUser()     { return ['admin', 'super_admin'].includes(state.userRole); }
 function isSuperAdminUser() { return state.userRole === 'super_admin'; }
 
@@ -3447,26 +3461,11 @@ function initMap() {
     'מפת שבילים': L.tileLayer('https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', { attribution: '© Israel Hiking', maxZoom: 16 })
   };
   layers['מפת שבילים'].addTo(leafletMap);
-  // "מפות אופליין" overlay — a layer group of green rectangles for downloaded areas.
-  // The overlay is added to the control only for approved+ users (see
-  // updateOfflineLayerAccess); toggling it on shows the regions + reveals the FAB.
+  // "מפות אופליין" capability — a layer group of green rectangles for downloaded areas.
+  // The layer is added/removed via the "אופליין" toolbar menu (toggleOfflineRegionsView),
+  // not via the layers control — offline management is a workflow, not a map layer.
   offlineRegionsLayer = L.layerGroup();
-  // Always include the overlay (this is the path that reliably renders it).
-  // Access control is done by hiding the whole overlays section via a body
-  // class for non-approved users — see updateOfflineLayerAccess.
-  offlineLayerControl = L.control.layers(layers, { 'מפות אופליין': offlineRegionsLayer }, { collapsed: true, position: 'topleft' }).addTo(leafletMap);
-  leafletMap.on('overlayadd', e => {
-    if (e.layer === offlineRegionsLayer) {
-      renderOfflineRegions();
-      if (isApprovedUser()) document.getElementById('offlineDlFab')?.classList.add('visible');
-    }
-  });
-  leafletMap.on('overlayremove', e => {
-    if (e.layer === offlineRegionsLayer) {
-      document.getElementById('offlineDlFab')?.classList.remove('visible');
-    }
-  });
-  updateOfflineLayerAccess(); // show the offline overlay now if the (already known) role qualifies
+  offlineLayerControl = L.control.layers(layers, {}, { collapsed: true, position: 'topleft' }).addTo(leafletMap);
 
   const trackControl = L.control({ position: 'bottomleft' });
   trackControl.onAdd = function() {
@@ -5553,19 +5552,55 @@ let offlineDownloadAbort = null;
 let offlineRegionsLayer = null;   // Leaflet LayerGroup of downloaded-area rectangles
 let offlineLayerControl = null;   // the L.control.layers instance
 
-// Show/hide the entire "מפות אופליין" capability based on role. Offline tiles
-// only exist for approved+ users (they're the only ones who can download), so
-// for everyone below we remove the overlay entry, the rectangles, and the FAB.
-function updateOfflineLayerAccess() {
-  // The overlay entry always exists in the control. We just hide the overlays
-  // section (CSS) for non-approved users, and make sure the layer + FAB are off.
-  const allowed = isApprovedUser();
-  document.body.classList.toggle('offline-overlay-hidden', !allowed);
-  if (!allowed && leafletMap && offlineRegionsLayer && leafletMap.hasLayer(offlineRegionsLayer)) {
-    leafletMap.removeLayer(offlineRegionsLayer);
-    document.getElementById('offlineDlFab')?.classList.remove('visible');
+// ========== OFFLINE POPOVER MENU ==========
+// The "אופליין" toolbar button opens this menu with two actions:
+//   1. Download a new area
+//   2. Toggle the green-rectangles overlay (showing what's already cached)
+// Signed-in users (any role) get the full menu; signed-out users see a toast.
+function toggleOfflineMenu(ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  if (!auth?.currentUser) {
+    toast('🔑 התחבר כדי להוריד מפות אופליין', 3000);
+    return;
   }
+  const menu = document.getElementById('offlineMenu');
+  const open = menu.style.display !== 'none';
+  if (open) { menu.style.display = 'none'; return; }
+  // Sync the checkmark with current overlay state before opening
+  const showing = leafletMap && offlineRegionsLayer && leafletMap.hasLayer(offlineRegionsLayer);
+  const chk = document.getElementById('offlineRegionsCheck');
+  if (chk) chk.style.display = showing ? 'inline' : 'none';
+  menu.style.display = 'block';
 }
+function closeOfflineMenu() {
+  const menu = document.getElementById('offlineMenu');
+  if (menu) menu.style.display = 'none';
+}
+function startOfflineDownloadFromMenu() {
+  closeOfflineMenu();
+  startOfflinePicking();
+}
+function toggleOfflineRegionsView() {
+  if (!leafletMap || !offlineRegionsLayer) return;
+  const chk = document.getElementById('offlineRegionsCheck');
+  if (leafletMap.hasLayer(offlineRegionsLayer)) {
+    leafletMap.removeLayer(offlineRegionsLayer);
+    if (chk) chk.style.display = 'none';
+  } else {
+    renderOfflineRegions();
+    leafletMap.addLayer(offlineRegionsLayer);
+    if (chk) chk.style.display = 'inline';
+  }
+  closeOfflineMenu();
+}
+// Close the popover when clicking anywhere outside it
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('offlineMenu');
+  const btn = document.getElementById('offlineMenuBtn');
+  if (!menu || menu.style.display === 'none') return;
+  if (menu.contains(e.target) || btn?.contains(e.target)) return;
+  menu.style.display = 'none';
+});
 
 // ----- Downloaded-region tracking (per-device, localStorage) -----
 // Each record: { id, north, south, east, west, layers:[keys], maxZoom, downloadedAt }
@@ -5613,11 +5648,11 @@ function lat2tile(lat, z) {
   return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
 }
 
-// Entry point from the compact FAB (shown only in "מפות אופליין" mode).
+// Entry point from the offline popover menu's "הורד אזור חדש".
 // Stage 1: NO modal — just a black instruction banner while the user taps two
 // corners on the fully-visible map. The config modal only opens after corner 2.
 function startOfflinePicking() {
-  if (!isApprovedUser()) { toast('הורדת מפות זמינה למשתמש מאושר ומעלה', 3500); return; }
+  if (!auth?.currentUser) { toast('🔑 התחבר כדי להוריד מפות אופליין', 3000); return; }
   resetOfflineSelection();
   offlineSelectionActive = true;
   showOfflinePickBanner('📍 לחץ על המפה לסימון פינה ראשונה');
