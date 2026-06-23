@@ -3245,47 +3245,51 @@ async function exportLastRecording() {
     return;
   }
   const gpxString = buildGpxFromRecording(rec);
-  const filename = `${getRecordingName(rec)}.gpx`;
-  // Web Share API on Android Chrome enforces a MIME whitelist. The canonical
-  // 'application/gpx+xml' isn't on it. Try several permissive MIMEs preflight,
-  // pick the first that canShare accepts, then call share() ONCE so we don't
-  // lose the user-gesture. Files-only payload (no title/text) — some Android
-  // browsers reject combined files+text shares. The .gpx filename keeps
-  // receiving apps treating it as a track.
-  // ===== DEBUG ROUND: probe whether share() works AT ALL on this browser by
-  // sharing TEXT+URL only (no files). If text-share opens the share sheet —
-  // file share is the specific issue and we'll fix differently. If text-share
-  // also throws NotAllowedError — Web Share is fundamentally blocked here and
-  // we accept download as the only option.
+  const niceName = getRecordingName(rec);          // may contain Hebrew — used in title
+  // ASCII-only filename for the actual File object — Chrome on Android can
+  // reject non-ASCII filenames on the file-share path. The .gpx extension
+  // and text/xml MIME ensure receiving apps still treat it as a track.
+  const d = new Date(rec.startTime || Date.now());
+  const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const timeStr = `${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
+  const asciiFilename = `recording_${dateStr}_${timeStr}.gpx`;
+  const downloadFilename = `${niceName}.gpx`;      // fallback download keeps Hebrew (fine in OS file managers)
+
+  // ===== DEBUG ROUND: file share with ASCII filename + title/text alongside.
+  // Confirmed in previous round that text+URL share works on this browser.
+  // Two hypotheses being tested together here: (a) Hebrew filename rejected by
+  // Chrome's file-share validation; (b) share() with files needs textual hints
+  // (title/text) alongside the file payload.
   if (!navigator.share) {
     alert('אבחון: navigator.share לא קיים — הורדה במקום');
   } else {
+    const file = new File([gpxString], asciiFilename, { type: 'text/xml' });
     try {
       await navigator.share({
-        title: 'מסלול ניווט רחפנים',
-        text: 'מסלול שהוקלט',
-        url: window.location.href
+        files: [file],
+        title: niceName,
+        text: 'מסלול ניווט רחפנים'
       });
-      // Text share worked → Web Share is alive, just files are the issue.
-      alert('אבחון: שיתוף טקסט+URL עבד ✓\n(הקובץ עצמו לא שותף — נצטרך לתקן שיתוף קבצים)');
-      // We did NOT actually share the GPX — fall through to download so the
-      // user still gets the file this time.
+      rec.exported = true;
+      backupRecordingsToLocalStorage();
+      toast('שותף ✓');
+      return;
     } catch (e) {
       if (e.name === 'AbortError') { toast('שיתוף בוטל'); return; }
       const ua = navigator.userActivation || {};
-      const inIframe = window.self !== window.top;
       alert(
-        'אבחון: text+url share נכשל\n' +
+        'אבחון: file share נכשל\n' +
         e.name + ': ' + (e.message || '?') + '\n\n' +
+        'filename=' + asciiFilename + '\n' +
+        'size=' + file.size + ' bytes\n' +
         'isActive=' + ua.isActive + '\n' +
-        'hasBeenActive=' + ua.hasBeenActive + '\n' +
-        'inIframe=' + inIframe
+        'hasBeenActive=' + ua.hasBeenActive
       );
       console.warn('share failed, falling back to download:', e);
     }
   }
-  // Fallback: trigger a normal browser download
-  downloadFile(gpxString, filename, 'application/gpx+xml');
+  // Fallback: trigger a normal browser download (Hebrew filename OK here)
+  downloadFile(gpxString, downloadFilename, 'application/gpx+xml');
   rec.exported = true;
   backupRecordingsToLocalStorage();
   toast('הורד ✓');
