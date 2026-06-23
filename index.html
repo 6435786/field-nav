@@ -3246,7 +3246,11 @@ async function exportLastRecording() {
   }
   const gpxString = buildGpxFromRecording(rec);
   const filename = `${getRecordingName(rec)}.gpx`;
-  const file = new File([gpxString], filename, { type: 'application/gpx+xml' });
+  // MIME 'application/gpx+xml' is correct but NOT on Android Chrome's Web Share
+  // whitelist, so canShare() returns false and we'd fall through to plain download.
+  // 'text/xml' is on the whitelist and is technically accurate (GPX is XML); the
+  // .gpx filename ensures receiving apps still recognise it as a track.
+  const file = new File([gpxString], filename, { type: 'text/xml' });
 
   if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
