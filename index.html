@@ -3252,27 +3252,36 @@ async function exportLastRecording() {
   // lose the user-gesture. Files-only payload (no title/text) — some Android
   // browsers reject combined files+text shares. The .gpx filename keeps
   // receiving apps treating it as a track.
-  if (navigator.share) {
+  // ===== DEBUG: temporary diagnostic toasts to identify why share fails on
+  // the user's Android Chrome. Remove once we have a working share path.
+  if (!navigator.share) {
+    toast('אבחון: navigator.share לא קיים — הורדה במקום', 6000);
+  } else if (navigator.share) {
     const mimes = ['text/xml', 'application/octet-stream', 'application/xml', 'text/plain'];
     let workingFile = null;
+    let workingMime = null;
     if (navigator.canShare) {
       for (const mime of mimes) {
         const f = new File([gpxString], filename, { type: mime });
-        if (navigator.canShare({ files: [f] })) { workingFile = f; break; }
+        if (navigator.canShare({ files: [f] })) { workingFile = f; workingMime = mime; break; }
+      }
+      if (!workingFile) {
+        toast('אבחון: canShare דחה את כל ה-MIMEs — הורדה במקום', 6000);
       }
     } else {
-      // canShare missing — try anyway with text/xml
       workingFile = new File([gpxString], filename, { type: 'text/xml' });
+      workingMime = 'text/xml (canShare missing)';
     }
     if (workingFile) {
       try {
         await navigator.share({ files: [workingFile] });
         rec.exported = true;
         backupRecordingsToLocalStorage();
-        toast('שותף ✓');
+        toast('שותף ✓ (' + workingMime + ')', 4000);
         return;
       } catch (e) {
-        if (e.name === 'AbortError') return;
+        if (e.name === 'AbortError') { toast('שיתוף בוטל'); return; }
+        toast('אבחון: share נכשל — ' + e.name + ': ' + (e.message || '?').slice(0,80), 6000);
         console.warn('share failed, falling back to download:', e);
       }
     }
