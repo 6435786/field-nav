@@ -3252,39 +3252,34 @@ async function exportLastRecording() {
   // lose the user-gesture. Files-only payload (no title/text) — some Android
   // browsers reject combined files+text shares. The .gpx filename keeps
   // receiving apps treating it as a track.
-  // ===== DEBUG: temporary diagnostic alerts to identify why share fails on
-  // the user's Android Chrome. Modal alerts can't be missed (toasts were hidden
-  // behind Chrome's download notification). Remove once root cause is known.
+  // ===== DEBUG: simpler share path + richer diagnostics. The canShare()
+  // preflight loop may have been consuming user-activation. Here we call
+  // share() exactly once with text/xml (on Android Chrome's whitelist), and
+  // on failure dump userActivation state + iframe state so we can tell
+  // whether activation was lost or some other policy is blocking us.
   if (!navigator.share) {
     alert('אבחון: navigator.share לא קיים — הורדה במקום');
-  } else if (navigator.share) {
-    const mimes = ['text/xml', 'application/octet-stream', 'application/xml', 'text/plain'];
-    let workingFile = null;
-    let workingMime = null;
-    if (navigator.canShare) {
-      for (const mime of mimes) {
-        const f = new File([gpxString], filename, { type: mime });
-        if (navigator.canShare({ files: [f] })) { workingFile = f; workingMime = mime; break; }
-      }
-      if (!workingFile) {
-        alert('אבחון: canShare דחה את כל ה-MIMEs — הורדה במקום');
-      }
-    } else {
-      workingFile = new File([gpxString], filename, { type: 'text/xml' });
-      workingMime = 'text/xml (canShare missing)';
-    }
-    if (workingFile) {
-      try {
-        await navigator.share({ files: [workingFile] });
-        rec.exported = true;
-        backupRecordingsToLocalStorage();
-        toast('שותף ✓ (' + workingMime + ')', 4000);
-        return;
-      } catch (e) {
-        if (e.name === 'AbortError') { toast('שיתוף בוטל'); return; }
-        alert('אבחון: share נכשל\n' + e.name + ': ' + (e.message || '?'));
-        console.warn('share failed, falling back to download:', e);
-      }
+  } else {
+    const file = new File([gpxString], filename, { type: 'text/xml' });
+    try {
+      await navigator.share({ files: [file] });
+      rec.exported = true;
+      backupRecordingsToLocalStorage();
+      toast('שותף ✓');
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') { toast('שיתוף בוטל'); return; }
+      const ua = navigator.userActivation || {};
+      const inIframe = window.self !== window.top;
+      alert(
+        'אבחון: share נכשל\n' +
+        e.name + ': ' + (e.message || '?') + '\n\n' +
+        'userActivation:\n' +
+        '  isActive=' + ua.isActive + '\n' +
+        '  hasBeenActive=' + ua.hasBeenActive + '\n' +
+        'inIframe=' + inIframe
+      );
+      console.warn('share failed, falling back to download:', e);
     }
   }
   // Fallback: trigger a normal browser download
