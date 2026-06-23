@@ -3246,25 +3246,35 @@ async function exportLastRecording() {
   }
   const gpxString = buildGpxFromRecording(rec);
   const filename = `${getRecordingName(rec)}.gpx`;
-  // MIME 'application/gpx+xml' is correct but NOT on Android Chrome's Web Share
-  // whitelist, so canShare() returns false and we'd fall through to plain download.
-  // 'text/xml' is on the whitelist and is technically accurate (GPX is XML); the
-  // .gpx filename ensures receiving apps still recognise it as a track.
-  const file = new File([gpxString], filename, { type: 'text/xml' });
-
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: 'מסלול ניווט רחפנים',
-        text: `מסלול: ${rec.points.length} נק׳, ${fmtDistance(rec.totalDist)}, ${formatDuration(rec.endTime - rec.startTime)}`
-      });
-      rec.exported = true;
-      backupRecordingsToLocalStorage();
-      toast('שותף ✓');
-      return;
-    } catch (e) {
-      if (e.name === 'AbortError') return;
+  // Web Share API on Android Chrome enforces a MIME whitelist. The canonical
+  // 'application/gpx+xml' isn't on it. Try several permissive MIMEs preflight,
+  // pick the first that canShare accepts, then call share() ONCE so we don't
+  // lose the user-gesture. Files-only payload (no title/text) — some Android
+  // browsers reject combined files+text shares. The .gpx filename keeps
+  // receiving apps treating it as a track.
+  if (navigator.share) {
+    const mimes = ['text/xml', 'application/octet-stream', 'application/xml', 'text/plain'];
+    let workingFile = null;
+    if (navigator.canShare) {
+      for (const mime of mimes) {
+        const f = new File([gpxString], filename, { type: mime });
+        if (navigator.canShare({ files: [f] })) { workingFile = f; break; }
+      }
+    } else {
+      // canShare missing — try anyway with text/xml
+      workingFile = new File([gpxString], filename, { type: 'text/xml' });
+    }
+    if (workingFile) {
+      try {
+        await navigator.share({ files: [workingFile] });
+        rec.exported = true;
+        backupRecordingsToLocalStorage();
+        toast('שותף ✓');
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        console.warn('share failed, falling back to download:', e);
+      }
     }
   }
   // Fallback: trigger a normal browser download
