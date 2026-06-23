@@ -3252,31 +3252,33 @@ async function exportLastRecording() {
   // lose the user-gesture. Files-only payload (no title/text) — some Android
   // browsers reject combined files+text shares. The .gpx filename keeps
   // receiving apps treating it as a track.
-  // ===== DEBUG: simpler share path + richer diagnostics. The canShare()
-  // preflight loop may have been consuming user-activation. Here we call
-  // share() exactly once with text/xml (on Android Chrome's whitelist), and
-  // on failure dump userActivation state + iframe state so we can tell
-  // whether activation was lost or some other policy is blocking us.
+  // ===== DEBUG ROUND: probe whether share() works AT ALL on this browser by
+  // sharing TEXT+URL only (no files). If text-share opens the share sheet —
+  // file share is the specific issue and we'll fix differently. If text-share
+  // also throws NotAllowedError — Web Share is fundamentally blocked here and
+  // we accept download as the only option.
   if (!navigator.share) {
     alert('אבחון: navigator.share לא קיים — הורדה במקום');
   } else {
-    const file = new File([gpxString], filename, { type: 'text/xml' });
     try {
-      await navigator.share({ files: [file] });
-      rec.exported = true;
-      backupRecordingsToLocalStorage();
-      toast('שותף ✓');
-      return;
+      await navigator.share({
+        title: 'מסלול ניווט רחפנים',
+        text: 'מסלול שהוקלט',
+        url: window.location.href
+      });
+      // Text share worked → Web Share is alive, just files are the issue.
+      alert('אבחון: שיתוף טקסט+URL עבד ✓\n(הקובץ עצמו לא שותף — נצטרך לתקן שיתוף קבצים)');
+      // We did NOT actually share the GPX — fall through to download so the
+      // user still gets the file this time.
     } catch (e) {
       if (e.name === 'AbortError') { toast('שיתוף בוטל'); return; }
       const ua = navigator.userActivation || {};
       const inIframe = window.self !== window.top;
       alert(
-        'אבחון: share נכשל\n' +
+        'אבחון: text+url share נכשל\n' +
         e.name + ': ' + (e.message || '?') + '\n\n' +
-        'userActivation:\n' +
-        '  isActive=' + ua.isActive + '\n' +
-        '  hasBeenActive=' + ua.hasBeenActive + '\n' +
+        'isActive=' + ua.isActive + '\n' +
+        'hasBeenActive=' + ua.hasBeenActive + '\n' +
         'inIframe=' + inIframe
       );
       console.warn('share failed, falling back to download:', e);
