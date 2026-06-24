@@ -3255,13 +3255,12 @@ async function exportLastRecording() {
   const asciiFilename = `recording_${dateStr}_${timeStr}.gpx`;
   const downloadFilename = `${niceName}.gpx`;      // fallback download keeps Hebrew (fine in OS file managers)
 
-  // ===== DEBUG ROUND: try MIME text/plain instead of text/xml.
-  // Hypothesis: Chrome's file-share gate may pre-check whether Android has
-  // any installed Intent handler for the MIME — text/plain is supported by
-  // every messaging/mail/notes app, so it should pass that gate even when
-  // text/xml doesn't. The .gpx filename is preserved so GPX-aware apps still
-  // recognise the track on the receiving side.
-  const SHARE_MIME = 'text/plain';
+  // ===== DEBUG ROUND: image/png — the most universally-supported MIME on
+  // Android for file shares. If even this throws NotAllowedError, file share
+  // is fundamentally broken on this Chrome+device combo (independent of any
+  // MIME we choose) and we'll move to plan D.
+  // Filename keeps .gpx so receiving GPX-aware apps still see a track.
+  const SHARE_MIME = 'image/png';
   if (!navigator.share) {
     alert('אבחון: navigator.share לא קיים — הורדה במקום');
   } else {
