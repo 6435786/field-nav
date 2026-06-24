@@ -3255,21 +3255,19 @@ async function exportLastRecording() {
   const asciiFilename = `recording_${dateStr}_${timeStr}.gpx`;
   const downloadFilename = `${niceName}.gpx`;      // fallback download keeps Hebrew (fine in OS file managers)
 
-  // ===== DEBUG ROUND: file share with ASCII filename + title/text alongside.
-  // Confirmed in previous round that text+URL share works on this browser.
-  // Two hypotheses being tested together here: (a) Hebrew filename rejected by
-  // Chrome's file-share validation; (b) share() with files needs textual hints
-  // (title/text) alongside the file payload.
+  // ===== DEBUG ROUND: try MIME text/plain instead of text/xml.
+  // Hypothesis: Chrome's file-share gate may pre-check whether Android has
+  // any installed Intent handler for the MIME — text/plain is supported by
+  // every messaging/mail/notes app, so it should pass that gate even when
+  // text/xml doesn't. The .gpx filename is preserved so GPX-aware apps still
+  // recognise the track on the receiving side.
+  const SHARE_MIME = 'text/plain';
   if (!navigator.share) {
     alert('אבחון: navigator.share לא קיים — הורדה במקום');
   } else {
-    const file = new File([gpxString], asciiFilename, { type: 'text/xml' });
+    const file = new File([gpxString], asciiFilename, { type: SHARE_MIME });
     try {
-      await navigator.share({
-        files: [file],
-        title: niceName,
-        text: 'מסלול ניווט רחפנים'
-      });
+      await navigator.share({ files: [file] });
       rec.exported = true;
       backupRecordingsToLocalStorage();
       toast('שותף ✓');
@@ -3280,6 +3278,7 @@ async function exportLastRecording() {
       alert(
         'אבחון: file share נכשל\n' +
         e.name + ': ' + (e.message || '?') + '\n\n' +
+        'mime=' + SHARE_MIME + '\n' +
         'filename=' + asciiFilename + '\n' +
         'size=' + file.size + ' bytes\n' +
         'isActive=' + ua.isActive + '\n' +
