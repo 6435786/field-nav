@@ -2855,6 +2855,34 @@ function extractUrlAndName(input) {
   return { url, name: rest || null };
 }
 
+// Labeled UTM / MGRS-style input, e.g. "36R 678133E 3521669N", "678133E 3521669N",
+// "36N 678133 3521669". Israel is always UTM zone 36N, so the zone/band token is
+// informational — we strip all labels and convert easting/northing via EPSG:32636.
+// Returns a result object only when it's confidently UTM; otherwise null so the
+// caller falls through to DMS / WGS84 / ITM parsing.
+function parseLabeledUTM(input) {
+  if (/[°'"]/.test(input)) return null;            // has degree/min/sec symbols → it's DMS, not UTM
+  let s = input.replace(/[,;|()\[\]]/g, ' ').trim();
+  // Strip a leading zone+band/hemisphere token (1-2 digit zone + one letter): "36R", "36 N".
+  s = s.replace(/^\s*\d{1,2}\s*[a-zA-Z]\b/, ' ');
+  // Collect numbers, each with an optional trailing E/N/S/W label.
+  const nums = [...s.matchAll(/(-?\d+(?:\.\d+)?)\s*([ensw])?/gi)]
+    .map(m => ({ v: parseFloat(m[1]), lab: (m[2] || '').toUpperCase() }))
+    .filter(o => !isNaN(o.v));
+  if (nums.length < 2) return null;
+  const inEast  = v => v >= 100000  && v <= 999999;
+  const inNorth = v => v >= 3000000 && v <= 4000000;
+  // Prefer the explicit E/N labels; fall back to magnitude when unlabeled.
+  let east  = nums.find(o => o.lab === 'E' && inEast(o.v))  || nums.find(o => o.lab !== 'N' && inEast(o.v));
+  let north = nums.find(o => o.lab === 'N' && inNorth(o.v)) || nums.find(o => o.lab !== 'E' && inNorth(o.v));
+  if (!east || !north || east === north) return null;
+  try {
+    const ll = proj4('EPSG:32636', 'EPSG:4326', [east.v, north.v]);
+    if (!isFinite(ll[0]) || !isFinite(ll[1])) return null;
+    return { type: 'UTM 36N', latLon: [ll[1], ll[0]] };
+  } catch (e) { return null; }
+}
+
 function detectAndParse(input) {
   if (!input || !input.trim()) return null;
   // URL detection — runs FIRST so stray letters like "S" in "Waze" don't trigger DMS
@@ -2870,6 +2898,10 @@ function detectAndParse(input) {
     pendingUrlName = name;
     return null;
   }
+  // Labeled UTM / MGRS (e.g. "36R 678133E 3521669N") — MUST run before the DMS
+  // check, otherwise the E/N labels get mistaken for DMS hemisphere letters.
+  const utm = parseLabeledUTM(input);
+  if (utm) return utm;
   if (/[°'"NSEW]/i.test(input)) {
     const r = parseDMS(input);
     if (r) return { type: 'WGS84 (DMS)', latLon: r };
