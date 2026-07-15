@@ -116,20 +116,51 @@ export default {
       return jsonResponse({ error: 'Only http(s) URLs allowed' }, 400, baseCors);
     }
 
+    // Google bot-checks datacenter IPs: following a maps link from the CF edge often
+    // lands on google.com/sorry (429 captcha) or consent.google.com instead of the
+    // map page. The real destination rides in that interstitial's ?continue= param,
+    // so we follow redirects hop-by-hop and grab it instead of fetching the block page.
+    const interstitialContinue = (u) => {
+      try {
+        const p = new URL(u);
+        const isSorry = p.hostname.endsWith('google.com') && p.pathname.startsWith('/sorry');
+        const isConsent = p.hostname === 'consent.google.com';
+        if (isSorry || isConsent) return p.searchParams.get('continue');
+      } catch (e) {}
+      return null;
+    };
+
     try {
-      const res = await fetch(target, {
-        redirect: 'follow',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 14) Mobile Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        },
-      });
-      const body = await res.text();
-      const trimmed = body.length > 1000000 ? body.slice(0, 1000000) : body;
+      const reqHeaders = {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 14) Mobile Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      };
+      let current = target;
+      let res = null;
+      for (let i = 0; i < 8; i++) {
+        res = await fetch(current, { redirect: 'manual', headers: reqHeaders });
+        const loc = (res.status >= 300 && res.status < 400) ? res.headers.get('location') : null;
+        if (!loc) break;
+        let next;
+        try { next = new URL(loc, current).toString(); } catch (e) { break; }
+        const cont = interstitialContinue(next);
+        if (cont) { current = cont; res = null; break; }  // real URL recovered — don't fetch the block page
+        current = next;
+      }
+      // Reached (or started at) an interstitial directly — recover and skip its body.
+      const direct = interstitialContinue(current);
+      if (direct) { current = direct; res = null; }
+
+      let body = '';
+      const status = res ? res.status : 302;
+      if (res && !(res.status >= 300 && res.status < 400)) {
+        body = await res.text();
+        if (body.length > 1000000) body = body.slice(0, 1000000);
+      }
       return new Response(JSON.stringify({
-        finalUrl: res.url,
-        status: res.status,
-        body: trimmed,
+        finalUrl: current,
+        status,
+        body,
       }), {
         headers: { 'Content-Type': 'application/json', ...baseCors }
       });
