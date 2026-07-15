@@ -5206,6 +5206,7 @@ async function scanQRFromFile(event) {
 // We then extract coordinates from the final URL (cheap) or fall back to scanning
 // the body (covers cases where coords are encoded inside HTML/JS).
 const URL_RESOLVER = 'https://delicate-math-4110.6435786.workers.dev/?url=';
+const GEOCODE_ENDPOINT = 'https://delicate-math-4110.6435786.workers.dev/geocode';
 
 async function tryExpandUrl(url) {
   try {
@@ -5231,7 +5232,45 @@ async function tryExpandUrl(url) {
         if (c2) return c2;
       }
     }
+    // Last resort — a Google "place" link that carries only a place-ID + address
+    // (no coordinates anywhere in the URL or body). Pull the address from the final
+    // URL and geocode it via the Worker (Google Geocoding API, capped 100/day).
+    if (data.finalUrl) {
+      const placeName = extractPlaceNameFromMapsUrl(data.finalUrl);
+      if (placeName) {
+        const g = await geocodeAddress(placeName);
+        if (g) return g;
+      }
+    }
   } catch (e) { /* network / abort / parse — fall through */ }
+  return null;
+}
+
+// Pull the place name / address out of a Google Maps "/maps/place/<NAME>/…" URL.
+function extractPlaceNameFromMapsUrl(u) {
+  try {
+    const m = u.match(/\/maps\/place\/([^/]+)/);
+    if (!m) return null;
+    let name = decodeURIComponent(m[1].replace(/\+/g, ' ')).trim();
+    name = name.replace(/[‎‏‪-‮]/g, '').trim(); // strip bidi marks
+    return name || null;
+  } catch (e) { return null; }
+}
+
+// Geocode an address string to [lat, lon] (strings) via the Worker. Returns null on
+// failure so callers fall through to the "open the link" fallback.
+async function geocodeAddress(address) {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(`${GEOCODE_ENDPOINT}?address=${encodeURIComponent(address)}`, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && typeof data.lat === 'number' && typeof data.lng === 'number') {
+      return [String(data.lat), String(data.lng)];
+    }
+  } catch (e) { /* network / abort / parse */ }
   return null;
 }
 
@@ -5300,6 +5339,7 @@ function extractCoordsFromText(text) {
     /[?&]sll=(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
     /[?&]to=ll\.(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
     /[?&]from=ll\.(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
+    /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/,   // Google place-URL exact pin (lat!3d, lon!4d)
     /\/@(-?\d+\.?\d*),(-?\d+\.?\d*)/,
     /^geo:(-?\d+\.?\d*),(-?\d+\.?\d*)/i,
     /(-?\d{1,3}\.\d{3,})[,\s]+(-?\d{1,3}\.\d{3,})/,
